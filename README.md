@@ -159,6 +159,18 @@ Then run:
 PYTHONPATH=src .venv/bin/python benchmarks/benchmark_compare_libtetrabz.py --grid 8 --repeats 3
 ```
 
+For the full release-parity gate against both the legacy shell references
+(`test2_8_8`, `test2_16_8`, `test2_16_16`) and the installed
+`libtetrabz` Python wrapper, run:
+
+```bash
+.venv/bin/pip install -e ./libtetra_original/python
+.venv/bin/python -m pytest -q tests/test_legacy_shell_matrix.py tests/test_legacy_wrapper_parity.py
+```
+
+GitHub Actions now runs that gate automatically on Ubuntu in addition to the
+normal lint and pytest jobs.
+
 The public API now uses one descriptive name per routine. Each public
 function docstring names the corresponding legacy `libtetrabz_*` routine it
 replaces.
