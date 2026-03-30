@@ -52,23 +52,15 @@ def _complex_polarization_weights_on_local_mesh(
     sample_energies: ComplexArray,
 ) -> ComplexArray:
     normalization = 6 * int(np.prod(mesh.energy_grid_shape, dtype=np.int64))
-    pair_count = occupied_tetra.shape[2] * target_tetra.shape[2]
-    if pair_count >= 16 and target_tetra.shape[2] >= 4:
-        return _complex_polarization_weights_on_local_mesh_pair_parallel_numba(
-            mesh.local_point_indices,
-            mesh.tetrahedron_weight_matrix,
-            occupied_tetra,
-            target_tetra,
-            sample_energies,
-            mesh.local_point_count,
-            normalization,
-        )
-    return _complex_polarization_weights_on_local_mesh_numba(
+    sample_energy_real = np.ascontiguousarray(sample_energies.real)
+    sample_energy_imag = np.ascontiguousarray(sample_energies.imag)
+    return _complex_polarization_weights_on_local_mesh_pair_parallel_numba(
         mesh.local_point_indices,
         mesh.tetrahedron_weight_matrix,
         occupied_tetra,
         target_tetra,
-        sample_energies,
+        sample_energy_real,
+        sample_energy_imag,
         mesh.local_point_count,
         normalization,
     )
@@ -1071,12 +1063,10 @@ def _complex_polarization_weights_on_local_mesh_numba(
         secondary_sorted_step_energies = np.empty(4, dtype=np.float64)
         secondary_sorted_target = np.empty(4, dtype=np.float64)
         secondary_sorted_occupied = np.empty(4, dtype=np.float64)
-        secondary_sorted_weights = np.empty((energy_count, 4), dtype=np.complex128)
         inner_strict = np.empty(4, dtype=np.float64)
         inner_affine = np.empty((4, 4), dtype=np.float64)
         inner_coefficients = np.empty((4, 4), dtype=np.float64)
         energy_differences = np.empty(4, dtype=np.float64)
-        sample_weights = np.empty((energy_count, 4), dtype=np.complex128)
 
         for tetrahedron_index in range(tetrahedron_count):
             sort4(
@@ -1114,12 +1104,10 @@ def _complex_polarization_weights_on_local_mesh_numba(
                     secondary_sorted_step_energies,
                     secondary_sorted_target,
                     secondary_sorted_occupied,
-                    secondary_sorted_weights,
                     inner_strict,
                     inner_affine,
                     inner_coefficients,
                     energy_differences,
-                    sample_weights,
                 )
             elif sorted_occupied[1] <= 0.0 < sorted_occupied[2]:
                 for case_id in (1, 2, 3):
@@ -1142,12 +1130,10 @@ def _complex_polarization_weights_on_local_mesh_numba(
                         secondary_sorted_step_energies,
                         secondary_sorted_target,
                         secondary_sorted_occupied,
-                        secondary_sorted_weights,
                         inner_strict,
                         inner_affine,
                         inner_coefficients,
                         energy_differences,
-                        sample_weights,
                     )
             elif sorted_occupied[2] <= 0.0 < sorted_occupied[3]:
                 for case_id in (4, 5, 6):
@@ -1170,12 +1156,10 @@ def _complex_polarization_weights_on_local_mesh_numba(
                         secondary_sorted_step_energies,
                         secondary_sorted_target,
                         secondary_sorted_occupied,
-                        secondary_sorted_weights,
                         inner_strict,
                         inner_affine,
                         inner_coefficients,
                         energy_differences,
-                        sample_weights,
                     )
             elif sorted_occupied[3] <= 0.0:
                 _polcmplx_secondary_weights_numba(
@@ -1188,12 +1172,10 @@ def _complex_polarization_weights_on_local_mesh_numba(
                     secondary_sorted_step_energies,
                     secondary_sorted_target,
                     secondary_sorted_occupied,
-                    secondary_sorted_weights,
                     inner_strict,
                     inner_affine,
                     inner_coefficients,
                     energy_differences,
-                    sample_weights,
                 )
                 for energy_index in range(energy_count):
                     for target_band_index in range(target_band_count):
@@ -1237,14 +1219,15 @@ def _complex_polarization_weights_on_local_mesh_pair_parallel_numba(
     tetrahedron_weight_matrix: FloatArray,
     occupied_tetra: FloatArray,
     target_tetra: FloatArray,
-    sample_energies: ComplexArray,
+    sample_energy_real: FloatArray,
+    sample_energy_imag: FloatArray,
     local_point_count: int,
     normalization: int,
 ) -> ComplexArray:
     tetrahedron_count = occupied_tetra.shape[0]
     source_band_count = occupied_tetra.shape[2]
     target_band_count = target_tetra.shape[2]
-    energy_count = sample_energies.shape[0]
+    energy_count = sample_energy_real.shape[0]
     pair_count = source_band_count * target_band_count
     local_weights = np.zeros(
         (local_point_count, energy_count, target_band_count, source_band_count), dtype=np.complex128
@@ -1256,31 +1239,31 @@ def _complex_polarization_weights_on_local_mesh_pair_parallel_numba(
 
         sorted_order = np.empty(4, dtype=np.int64)
         sorted_occupied = np.empty(4, dtype=np.float64)
-        sorted_target = np.empty((4, 1), dtype=np.float64)
-        full_target = np.empty((4, 1), dtype=np.float64)
-        outer_weights = np.empty((energy_count, 1, 4), dtype=np.complex128)
-        point_weights = np.empty(20, dtype=np.complex128)
+        sorted_target = np.empty(4, dtype=np.float64)
+        full_target = np.empty(4, dtype=np.float64)
 
         outer_strict = np.empty(4, dtype=np.float64)
         outer_affine = np.empty((4, 4), dtype=np.float64)
         outer_coefficients = np.empty((4, 4), dtype=np.float64)
         transformed_occupied = np.empty(4, dtype=np.float64)
-        transformed_target = np.empty((4, 1), dtype=np.float64)
+        transformed_target = np.empty(4, dtype=np.float64)
+        outer_point_coefficients = np.empty((4, 20), dtype=np.float64)
 
-        secondary_weights = np.empty((energy_count, 1, 4), dtype=np.complex128)
         step_energies = np.empty(4, dtype=np.float64)
         secondary_sorted_order = np.empty(4, dtype=np.int64)
         secondary_sorted_step_energies = np.empty(4, dtype=np.float64)
         secondary_sorted_target = np.empty(4, dtype=np.float64)
         secondary_sorted_occupied = np.empty(4, dtype=np.float64)
-        secondary_sorted_weights = np.empty((energy_count, 4), dtype=np.complex128)
         inner_strict = np.empty(4, dtype=np.float64)
         inner_affine = np.empty((4, 4), dtype=np.float64)
         inner_coefficients = np.empty((4, 4), dtype=np.float64)
         energy_differences = np.empty(4, dtype=np.float64)
-        sample_weights = np.empty((energy_count, 4), dtype=np.complex128)
+        point_coefficients = np.empty((4, 20), dtype=np.float64)
+        sample_weight_real = np.empty(4, dtype=np.float64)
+        sample_weight_imag = np.empty(4, dtype=np.float64)
 
         for tetrahedron_index in range(tetrahedron_count):
+            local_points = local_point_indices[tetrahedron_index]
             sort4(
                 occupied_tetra[tetrahedron_index, :, source_band_index],
                 sorted_order,
@@ -1288,149 +1271,470 @@ def _complex_polarization_weights_on_local_mesh_pair_parallel_numba(
             )
             for vertex_index in range(4):
                 source_vertex = sorted_order[vertex_index]
-                sorted_target[vertex_index, 0] = target_tetra[
+                sorted_target[vertex_index] = target_tetra[
                     tetrahedron_index,
                     source_vertex,
                     target_band_index,
                 ]
-                full_target[vertex_index, 0] = target_tetra[
+                full_target[vertex_index] = target_tetra[
                     tetrahedron_index,
                     vertex_index,
                     target_band_index,
                 ]
 
-            outer_weights[:, :, :] = 0.0j
             if sorted_occupied[0] <= 0.0 < sorted_occupied[1]:
-                _accumulate_small_tetra_polcmplx_outer_numba(
-                    outer_weights,
+                _accumulate_small_tetra_polcmplx_outer_pair_direct_numba(
+                    local_weights,
+                    local_points,
+                    tetrahedron_weight_matrix,
+                    source_band_index,
+                    target_band_index,
                     0,
                     sorted_order,
                     sorted_occupied,
                     sorted_target,
-                    sample_energies,
-                    1,
+                    sample_energy_real,
+                    sample_energy_imag,
                     outer_strict,
                     outer_affine,
                     outer_coefficients,
                     transformed_occupied,
                     transformed_target,
-                    secondary_weights,
+                    outer_point_coefficients,
                     step_energies,
                     secondary_sorted_order,
                     secondary_sorted_step_energies,
                     secondary_sorted_target,
                     secondary_sorted_occupied,
-                    secondary_sorted_weights,
                     inner_strict,
                     inner_affine,
                     inner_coefficients,
                     energy_differences,
-                    sample_weights,
+                    point_coefficients,
+                    sample_weight_real,
+                    sample_weight_imag,
                 )
             elif sorted_occupied[1] <= 0.0 < sorted_occupied[2]:
                 for case_id in (1, 2, 3):
-                    _accumulate_small_tetra_polcmplx_outer_numba(
-                        outer_weights,
+                    _accumulate_small_tetra_polcmplx_outer_pair_direct_numba(
+                        local_weights,
+                        local_points,
+                        tetrahedron_weight_matrix,
+                        source_band_index,
+                        target_band_index,
                         case_id,
                         sorted_order,
                         sorted_occupied,
                         sorted_target,
-                        sample_energies,
-                        1,
+                        sample_energy_real,
+                        sample_energy_imag,
                         outer_strict,
                         outer_affine,
                         outer_coefficients,
                         transformed_occupied,
                         transformed_target,
-                        secondary_weights,
+                        outer_point_coefficients,
                         step_energies,
                         secondary_sorted_order,
                         secondary_sorted_step_energies,
                         secondary_sorted_target,
                         secondary_sorted_occupied,
-                        secondary_sorted_weights,
                         inner_strict,
                         inner_affine,
                         inner_coefficients,
                         energy_differences,
-                        sample_weights,
+                        point_coefficients,
+                        sample_weight_real,
+                        sample_weight_imag,
                     )
             elif sorted_occupied[2] <= 0.0 < sorted_occupied[3]:
                 for case_id in (4, 5, 6):
-                    _accumulate_small_tetra_polcmplx_outer_numba(
-                        outer_weights,
+                    _accumulate_small_tetra_polcmplx_outer_pair_direct_numba(
+                        local_weights,
+                        local_points,
+                        tetrahedron_weight_matrix,
+                        source_band_index,
+                        target_band_index,
                         case_id,
                         sorted_order,
                         sorted_occupied,
                         sorted_target,
-                        sample_energies,
-                        1,
+                        sample_energy_real,
+                        sample_energy_imag,
                         outer_strict,
                         outer_affine,
                         outer_coefficients,
                         transformed_occupied,
                         transformed_target,
-                        secondary_weights,
+                        outer_point_coefficients,
                         step_energies,
                         secondary_sorted_order,
                         secondary_sorted_step_energies,
                         secondary_sorted_target,
                         secondary_sorted_occupied,
-                        secondary_sorted_weights,
                         inner_strict,
                         inner_affine,
                         inner_coefficients,
                         energy_differences,
-                        sample_weights,
+                        point_coefficients,
+                        sample_weight_real,
+                        sample_weight_imag,
                     )
             elif sorted_occupied[3] <= 0.0:
-                _polcmplx_secondary_weights_numba(
+                _polcmplx_secondary_pair_direct_numba(
+                    local_weights,
+                    local_points,
+                    source_band_index,
+                    target_band_index,
+                    tetrahedron_weight_matrix,
                     occupied_tetra[tetrahedron_index, :, source_band_index],
                     full_target,
-                    sample_energies,
-                    secondary_weights,
+                    sample_energy_real,
+                    sample_energy_imag,
                     step_energies,
                     secondary_sorted_order,
                     secondary_sorted_step_energies,
                     secondary_sorted_target,
                     secondary_sorted_occupied,
-                    secondary_sorted_weights,
                     inner_strict,
                     inner_affine,
                     inner_coefficients,
                     energy_differences,
-                    sample_weights,
+                    point_coefficients,
+                    sample_weight_real,
+                    sample_weight_imag,
                 )
-                for energy_index in range(energy_count):
-                    for vertex_index in range(4):
-                        outer_weights[energy_index, 0, vertex_index] += secondary_weights[
-                            energy_index,
-                            0,
-                            vertex_index,
-                        ]
-
-            for energy_index in range(energy_count):
-                for point_index in range(20):
-                    total = 0.0j
-                    for vertex_index in range(4):
-                        total += (
-                            outer_weights[energy_index, 0, vertex_index]
-                            * tetrahedron_weight_matrix[
-                                vertex_index,
-                                point_index,
-                            ]
-                        )
-                    point_weights[point_index] = total
-                for point_index in range(20):
-                    local_weights[
-                        local_point_indices[tetrahedron_index, point_index],
-                        energy_index,
-                        target_band_index,
-                        source_band_index,
-                    ] += point_weights[point_index]
 
     local_weights /= float(normalization)
     return local_weights
+
+
+@njit(cache=True)
+def _accumulate_small_tetra_polcmplx_outer_pair_direct_numba(
+    local_weights: ComplexArray,
+    local_points: npt.NDArray[np.int64],
+    tetrahedron_weight_matrix: FloatArray,
+    source_band_index: int,
+    target_band_index: int,
+    case_id: int,
+    sorted_order: npt.NDArray[np.int64],
+    sorted_occupied: FloatArray,
+    sorted_target: FloatArray,
+    sample_energy_real: FloatArray,
+    sample_energy_imag: FloatArray,
+    outer_strict: FloatArray,
+    outer_affine: FloatArray,
+    outer_coefficients: FloatArray,
+    transformed_occupied: FloatArray,
+    transformed_target: FloatArray,
+    outer_point_coefficients: FloatArray,
+    step_energies: FloatArray,
+    secondary_sorted_order: npt.NDArray[np.int64],
+    secondary_sorted_step_energies: FloatArray,
+    secondary_sorted_target: FloatArray,
+    secondary_sorted_occupied: FloatArray,
+    inner_strict: FloatArray,
+    inner_affine: FloatArray,
+    inner_coefficients: FloatArray,
+    energy_differences: FloatArray,
+    point_coefficients: FloatArray,
+    sample_weight_real: FloatArray,
+    sample_weight_imag: FloatArray,
+) -> None:
+    volume_factor = small_tetra_volume_and_coefficients(
+        case_id,
+        sorted_occupied,
+        outer_strict,
+        outer_affine,
+        outer_coefficients,
+    )
+    if volume_factor <= 1.0e-8:
+        return
+
+    for row_index in range(4):
+        total = 0.0
+        for column_index in range(4):
+            total += outer_coefficients[row_index, column_index] * sorted_occupied[column_index]
+        transformed_occupied[row_index] = total
+
+    for row_index in range(4):
+        total = 0.0
+        for column_index in range(4):
+            total += outer_coefficients[row_index, column_index] * sorted_target[column_index]
+        transformed_target[row_index] = total
+
+    for row_index in range(4):
+        for point_index in range(20):
+            total = 0.0
+            for column_index in range(4):
+                total += (
+                    outer_coefficients[row_index, column_index]
+                    * tetrahedron_weight_matrix[
+                        sorted_order[column_index],
+                        point_index,
+                    ]
+                )
+            outer_point_coefficients[row_index, point_index] = volume_factor * total
+
+    _polcmplx_secondary_pair_direct_numba(
+        local_weights,
+        local_points,
+        source_band_index,
+        target_band_index,
+        outer_point_coefficients,
+        transformed_occupied,
+        transformed_target,
+        sample_energy_real,
+        sample_energy_imag,
+        step_energies,
+        secondary_sorted_order,
+        secondary_sorted_step_energies,
+        secondary_sorted_target,
+        secondary_sorted_occupied,
+        inner_strict,
+        inner_affine,
+        inner_coefficients,
+        energy_differences,
+        point_coefficients,
+        sample_weight_real,
+        sample_weight_imag,
+    )
+
+
+@njit(cache=True)
+def _polcmplx_secondary_pair_direct_numba(
+    local_weights: ComplexArray,
+    local_points: npt.NDArray[np.int64],
+    source_band_index: int,
+    target_band_index: int,
+    point_coefficients_base: FloatArray,
+    occupied_vertices: FloatArray,
+    target_vertices: FloatArray,
+    sample_energy_real: FloatArray,
+    sample_energy_imag: FloatArray,
+    step_energies: FloatArray,
+    sorted_order: npt.NDArray[np.int64],
+    sorted_step_energies: FloatArray,
+    sorted_target: FloatArray,
+    sorted_occupied: FloatArray,
+    strict_energies: FloatArray,
+    affine: FloatArray,
+    coefficients: FloatArray,
+    energy_differences: FloatArray,
+    point_coefficients: FloatArray,
+    sample_weight_real: FloatArray,
+    sample_weight_imag: FloatArray,
+) -> None:
+    for vertex_index in range(4):
+        step_energies[vertex_index] = -target_vertices[vertex_index]
+    sort4(step_energies, sorted_order, sorted_step_energies)
+    for vertex_index in range(4):
+        source_vertex = sorted_order[vertex_index]
+        sorted_target[vertex_index] = target_vertices[source_vertex]
+        sorted_occupied[vertex_index] = occupied_vertices[source_vertex]
+
+    if (sorted_step_energies[0] <= 0.0 < sorted_step_energies[1]) or (
+        sorted_step_energies[0] < 0.0 <= sorted_step_energies[1]
+    ):
+        _accumulate_small_tetra_polcmplx_inner_pair_direct_numba(
+            local_weights,
+            local_points,
+            source_band_index,
+            target_band_index,
+            point_coefficients_base,
+            0,
+            sorted_order,
+            sorted_step_energies,
+            sorted_occupied,
+            sorted_target,
+            sample_energy_real,
+            sample_energy_imag,
+            strict_energies,
+            affine,
+            coefficients,
+            energy_differences,
+            point_coefficients,
+            sample_weight_real,
+            sample_weight_imag,
+        )
+    elif (sorted_step_energies[1] <= 0.0 < sorted_step_energies[2]) or (
+        sorted_step_energies[1] < 0.0 <= sorted_step_energies[2]
+    ):
+        for case_id in (1, 2, 3):
+            _accumulate_small_tetra_polcmplx_inner_pair_direct_numba(
+                local_weights,
+                local_points,
+                source_band_index,
+                target_band_index,
+                point_coefficients_base,
+                case_id,
+                sorted_order,
+                sorted_step_energies,
+                sorted_occupied,
+                sorted_target,
+                sample_energy_real,
+                sample_energy_imag,
+                strict_energies,
+                affine,
+                coefficients,
+                energy_differences,
+                point_coefficients,
+                sample_weight_real,
+                sample_weight_imag,
+            )
+    elif (sorted_step_energies[2] <= 0.0 < sorted_step_energies[3]) or (
+        sorted_step_energies[2] < 0.0 <= sorted_step_energies[3]
+    ):
+        for case_id in (4, 5, 6):
+            _accumulate_small_tetra_polcmplx_inner_pair_direct_numba(
+                local_weights,
+                local_points,
+                source_band_index,
+                target_band_index,
+                point_coefficients_base,
+                case_id,
+                sorted_order,
+                sorted_step_energies,
+                sorted_occupied,
+                sorted_target,
+                sample_energy_real,
+                sample_energy_imag,
+                strict_energies,
+                affine,
+                coefficients,
+                energy_differences,
+                point_coefficients,
+                sample_weight_real,
+                sample_weight_imag,
+            )
+    elif sorted_step_energies[3] <= 0.0:
+        for vertex_index in range(4):
+            energy_differences[vertex_index] = sorted_target[vertex_index] - sorted_occupied[vertex_index]
+        for row_index in range(4):
+            for point_index in range(20):
+                point_coefficients[row_index, point_index] = point_coefficients_base[
+                    sorted_order[row_index],
+                    point_index,
+                ]
+        _accumulate_polcmplx_point_weights_numba(
+            local_weights,
+            local_points,
+            source_band_index,
+            target_band_index,
+            sample_energy_real,
+            sample_energy_imag,
+            energy_differences,
+            point_coefficients,
+            sample_weight_real,
+            sample_weight_imag,
+        )
+
+
+@njit(cache=True)
+def _accumulate_small_tetra_polcmplx_inner_pair_direct_numba(
+    local_weights: ComplexArray,
+    local_points: npt.NDArray[np.int64],
+    source_band_index: int,
+    target_band_index: int,
+    point_coefficients_base: FloatArray,
+    case_id: int,
+    sorted_order: npt.NDArray[np.int64],
+    sorted_step_energies: FloatArray,
+    sorted_occupied: FloatArray,
+    sorted_target: FloatArray,
+    sample_energy_real: FloatArray,
+    sample_energy_imag: FloatArray,
+    strict_energies: FloatArray,
+    affine: FloatArray,
+    coefficients: FloatArray,
+    energy_differences: FloatArray,
+    point_coefficients: FloatArray,
+    sample_weight_real: FloatArray,
+    sample_weight_imag: FloatArray,
+) -> None:
+    volume_factor = small_tetra_volume_and_coefficients(
+        case_id,
+        sorted_step_energies,
+        strict_energies,
+        affine,
+        coefficients,
+    )
+    if volume_factor <= 1.0e-8:
+        return
+
+    for row_index in range(4):
+        total = 0.0
+        for column_index in range(4):
+            total += coefficients[row_index, column_index] * (
+                sorted_target[column_index] - sorted_occupied[column_index]
+            )
+        energy_differences[row_index] = total
+
+    for row_index in range(4):
+        for point_index in range(20):
+            total = 0.0
+            for column_index in range(4):
+                total += (
+                    coefficients[row_index, column_index]
+                    * point_coefficients_base[
+                        sorted_order[column_index],
+                        point_index,
+                    ]
+                )
+            point_coefficients[row_index, point_index] = volume_factor * total
+
+    _accumulate_polcmplx_point_weights_numba(
+        local_weights,
+        local_points,
+        source_band_index,
+        target_band_index,
+        sample_energy_real,
+        sample_energy_imag,
+        energy_differences,
+        point_coefficients,
+        sample_weight_real,
+        sample_weight_imag,
+    )
+
+
+@njit(cache=True)
+def _accumulate_polcmplx_point_weights_numba(
+    local_weights: ComplexArray,
+    local_points: npt.NDArray[np.int64],
+    source_band_index: int,
+    target_band_index: int,
+    sample_energy_real: FloatArray,
+    sample_energy_imag: FloatArray,
+    energy_differences: FloatArray,
+    point_coefficients: FloatArray,
+    sample_weight_real: FloatArray,
+    sample_weight_imag: FloatArray,
+) -> None:
+    energy_count = sample_energy_real.shape[0]
+    for energy_index in range(energy_count):
+        real_part = sample_energy_real[energy_index]
+        imag_part = sample_energy_imag[energy_index]
+        for vertex_index in range(4):
+            denominator_real = energy_differences[vertex_index] + real_part
+            denominator_imag = imag_part
+            scale = 0.25 / (
+                denominator_real * denominator_real + denominator_imag * denominator_imag
+            )
+            sample_weight_real[vertex_index] = denominator_real * scale
+            sample_weight_imag[vertex_index] = -denominator_imag * scale
+        for point_index in range(20):
+            total_real = 0.0
+            total_imag = 0.0
+            for vertex_index in range(4):
+                coefficient = point_coefficients[vertex_index, point_index]
+                total_real += coefficient * sample_weight_real[vertex_index]
+                total_imag += coefficient * sample_weight_imag[vertex_index]
+            local_weights[
+                local_points[point_index],
+                energy_index,
+                target_band_index,
+                source_band_index,
+            ] += total_real + 1j * total_imag
 
 
 @njit(cache=True)
@@ -1453,12 +1757,10 @@ def _accumulate_small_tetra_polcmplx_outer_numba(
     secondary_sorted_step_energies: FloatArray,
     secondary_sorted_target: FloatArray,
     secondary_sorted_occupied: FloatArray,
-    secondary_sorted_weights: ComplexArray,
     inner_strict: FloatArray,
     inner_affine: FloatArray,
     inner_coefficients: FloatArray,
     energy_differences: FloatArray,
-    sample_weights: ComplexArray,
 ) -> None:
     volume_factor = small_tetra_volume_and_coefficients(
         case_id,
@@ -1496,12 +1798,10 @@ def _accumulate_small_tetra_polcmplx_outer_numba(
         secondary_sorted_step_energies,
         secondary_sorted_target,
         secondary_sorted_occupied,
-        secondary_sorted_weights,
         inner_strict,
         inner_affine,
         inner_coefficients,
         energy_differences,
-        sample_weights,
     )
 
     energy_count = sample_energies.shape[0]
@@ -1533,12 +1833,10 @@ def _polcmplx_secondary_weights_numba(
     sorted_step_energies: FloatArray,
     sorted_target: FloatArray,
     sorted_occupied: FloatArray,
-    sorted_weights: ComplexArray,
     strict_energies: FloatArray,
     affine: FloatArray,
     coefficients: FloatArray,
     energy_differences: FloatArray,
-    sample_weights: ComplexArray,
 ) -> None:
     target_band_count = target_vertices.shape[1]
     energy_count = sample_energies.shape[0]
@@ -1552,13 +1850,14 @@ def _polcmplx_secondary_weights_numba(
             source_vertex = sorted_order[vertex_index]
             sorted_target[vertex_index] = target_vertices[source_vertex, target_band_index]
             sorted_occupied[vertex_index] = occupied_vertices[source_vertex]
-        sorted_weights[:, :] = 0.0j
 
         if (sorted_step_energies[0] <= 0.0 < sorted_step_energies[1]) or (
             sorted_step_energies[0] < 0.0 <= sorted_step_energies[1]
         ):
             _accumulate_small_tetra_polcmplx_inner_numba(
-                sorted_weights,
+                weights,
+                target_band_index,
+                sorted_order,
                 0,
                 sorted_step_energies,
                 sorted_occupied,
@@ -1568,14 +1867,15 @@ def _polcmplx_secondary_weights_numba(
                 affine,
                 coefficients,
                 energy_differences,
-                sample_weights,
             )
         elif (sorted_step_energies[1] <= 0.0 < sorted_step_energies[2]) or (
             sorted_step_energies[1] < 0.0 <= sorted_step_energies[2]
         ):
             for case_id in (1, 2, 3):
                 _accumulate_small_tetra_polcmplx_inner_numba(
-                    sorted_weights,
+                    weights,
+                    target_band_index,
+                    sorted_order,
                     case_id,
                     sorted_step_energies,
                     sorted_occupied,
@@ -1585,14 +1885,15 @@ def _polcmplx_secondary_weights_numba(
                     affine,
                     coefficients,
                     energy_differences,
-                    sample_weights,
                 )
         elif (sorted_step_energies[2] <= 0.0 < sorted_step_energies[3]) or (
             sorted_step_energies[2] < 0.0 <= sorted_step_energies[3]
         ):
             for case_id in (4, 5, 6):
                 _accumulate_small_tetra_polcmplx_inner_numba(
-                    sorted_weights,
+                    weights,
+                    target_band_index,
+                    sorted_order,
                     case_id,
                     sorted_step_energies,
                     sorted_occupied,
@@ -1602,33 +1903,24 @@ def _polcmplx_secondary_weights_numba(
                     affine,
                     coefficients,
                     energy_differences,
-                    sample_weights,
                 )
         elif sorted_step_energies[3] <= 0.0:
             for vertex_index in range(4):
                 energy_differences[vertex_index] = (
                     sorted_target[vertex_index] - sorted_occupied[vertex_index]
                 )
-            _polcmplx_sample_weights_numba(sample_energies, energy_differences, sample_weights)
             for energy_index in range(energy_count):
                 for vertex_index in range(4):
-                    sorted_weights[energy_index, vertex_index] += sample_weights[
-                        energy_index, vertex_index
-                    ]
-
-        for energy_index in range(energy_count):
-            for vertex_index in range(4):
-                weights[energy_index, target_band_index, sorted_order[vertex_index]] = (
-                    sorted_weights[
-                        energy_index,
-                        vertex_index,
-                    ]
-                )
+                    weights[energy_index, target_band_index, sorted_order[vertex_index]] += 0.25 / (
+                        energy_differences[vertex_index] + sample_energies[energy_index]
+                    )
 
 
 @njit(cache=True)
 def _accumulate_small_tetra_polcmplx_inner_numba(
     weights: ComplexArray,
+    target_band_index: int,
+    sorted_order: npt.NDArray[np.int64],
     case_id: int,
     sorted_step_energies: FloatArray,
     sorted_occupied: FloatArray,
@@ -1638,7 +1930,6 @@ def _accumulate_small_tetra_polcmplx_inner_numba(
     affine: FloatArray,
     coefficients: FloatArray,
     energy_differences: FloatArray,
-    sample_weights: ComplexArray,
 ) -> None:
     volume_factor = small_tetra_volume_and_coefficients(
         case_id,
@@ -1658,29 +1949,16 @@ def _accumulate_small_tetra_polcmplx_inner_numba(
             )
         energy_differences[row_index] = total
 
-    _polcmplx_sample_weights_numba(sample_energies, energy_differences, sample_weights)
-
     energy_count = sample_energies.shape[0]
     for energy_index in range(energy_count):
+        sample_energy = sample_energies[energy_index]
         for column_index in range(4):
             total = 0.0j
             for row_index in range(4):
-                total += (
-                    sample_weights[energy_index, row_index] * coefficients[row_index, column_index]
-                )
-            weights[energy_index, column_index] += volume_factor * total
-
-
-@njit(cache=True)
-def _polcmplx_sample_weights_numba(
-    sample_energies: ComplexArray,
-    energy_differences: FloatArray,
-    weights: ComplexArray,
-) -> None:
-    # The live legacy polcmplx3 path is just the direct vertex average 0.25 / (de + z).
-    energy_count = sample_energies.shape[0]
-    for energy_index in range(energy_count):
-        for vertex_index in range(4):
-            weights[energy_index, vertex_index] = 0.25 / (
-                energy_differences[vertex_index] + sample_energies[energy_index]
+                total += 0.25 / (energy_differences[row_index] + sample_energy) * coefficients[
+                    row_index,
+                    column_index,
+                ]
+            weights[energy_index, target_band_index, sorted_order[column_index]] += (
+                volume_factor * total
             )

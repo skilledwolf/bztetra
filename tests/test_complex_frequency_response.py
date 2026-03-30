@@ -91,5 +91,30 @@ def test_complex_frequency_polarization_weights_tracks_exact_constant_gap_channe
     np.testing.assert_allclose(weighted[:, 1, :], exact_complex_frequency_polarization_constant_gap_channels(energies), rtol=2.0e-3, atol=1.0e-5)
 
 
+def test_complex_frequency_polarization_weights_preserves_complex_energy_order() -> None:
+    bvec, eigenvalues_1, eigenvalues_2, _ = legacy_free_electron_response_case((8, 8, 8), (8, 8, 8))
+    energies = complex_frequency_polarization_energy_points()
+    permutation = np.array([2, 0, 1], dtype=np.int64)
+
+    ordered_weights = complex_frequency_polarization_weights(
+        bvec,
+        eigenvalues_1 - 0.5,
+        eigenvalues_2 - 0.5,
+        energies,
+        weight_grid_shape=(8, 8, 8),
+        method="optimized",
+    )
+    shuffled_weights = complex_frequency_polarization_weights(
+        bvec,
+        eigenvalues_1 - 0.5,
+        eigenvalues_2 - 0.5,
+        energies[permutation],
+        weight_grid_shape=(8, 8, 8),
+        method="optimized",
+    )
+
+    np.testing.assert_allclose(shuffled_weights, ordered_weights[permutation], rtol=1.0e-12, atol=1.0e-12)
+
+
 def _weighted_energy_matrix(weights: np.ndarray, metric: np.ndarray, reciprocal_vectors: np.ndarray) -> np.ndarray:
     return (weights * metric[None, ..., None, None]).sum(axis=(1, 2, 3)) * brillouin_zone_volume(reciprocal_vectors)
