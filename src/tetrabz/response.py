@@ -25,7 +25,12 @@ from .geometry import cached_integration_mesh
 
 @dataclass(slots=True)
 class PreparedResponseEvaluator:
-    """Reusable response setup for repeated evaluations on a fixed source/target band set."""
+    """Reusable setup for repeated source-to-target response evaluations.
+
+    Static methods return `(wx, wy, wz, ntarget, nsource)` arrays with the last
+    axes ordered `(target_band, source_band)`. Frequency-dependent methods return
+    `(nenergy, wx, wy, wz, ntarget, nsource)` arrays.
+    """
 
     mesh: IntegrationMesh
     occupied_tetra: FloatArray
@@ -99,7 +104,14 @@ def prepare_response_evaluator(
     weight_grid_shape: tuple[int, int, int] | None = None,
     method: int | TetraMethod = "optimized",
 ) -> PreparedResponseEvaluator:
-    """Prepare reusable response state for repeated source/target sweeps."""
+    """Prepare reusable response state for repeated source-to-target sweeps.
+
+    `occupied_eigenvalues` and `target_eigenvalues` must both have shape
+    `(nx, ny, nz, nbands)`. The prepared evaluator reuses mesh and tetrahedron
+    setup across static, real-frequency, and complex-frequency response calls.
+    Set `method="linear"` only when reproducing the legacy linear tetrahedron
+    scheme.
+    """
 
     occupied_flat, target_flat, energy_grid_shape = _normalize_eigenvalue_pair(
         occupied_eigenvalues,
@@ -126,7 +138,11 @@ def phase_space_overlap_weights(
     weight_grid_shape: tuple[int, int, int] | None = None,
     method: int | TetraMethod = "optimized",
 ) -> FloatArray:
-    """Evaluate the double-step phase-space overlap. Replaces `libtetrabz_dblstep`."""
+    """Evaluate the double-step phase-space overlap.
+
+    The result has shape `(wx, wy, wz, ntarget, nsource)` with the last axes
+    ordered `(target_band, source_band)`. Replaces `libtetrabz_dblstep`.
+    """
 
     evaluator = prepare_response_evaluator(
         reciprocal_vectors,
@@ -146,7 +162,11 @@ def nesting_function_weights(
     weight_grid_shape: tuple[int, int, int] | None = None,
     method: int | TetraMethod = "optimized",
 ) -> FloatArray:
-    """Evaluate the double-delta nesting function. Replaces `libtetrabz_dbldelta`."""
+    """Evaluate the double-delta nesting function.
+
+    The result has shape `(wx, wy, wz, ntarget, nsource)` with the last axes
+    ordered `(target_band, source_band)`. Replaces `libtetrabz_dbldelta`.
+    """
 
     evaluator = prepare_response_evaluator(
         reciprocal_vectors,
@@ -167,7 +187,12 @@ def fermi_golden_rule_weights(
     weight_grid_shape: tuple[int, int, int] | None = None,
     method: int | TetraMethod = "optimized",
 ) -> FloatArray:
-    """Evaluate real-frequency transition weights. Replaces `libtetrabz_fermigr`."""
+    """Evaluate real-frequency transition weights.
+
+    `energies` must be one-dimensional. The result has shape
+    `(nenergy, wx, wy, wz, ntarget, nsource)` with the last axes ordered
+    `(target_band, source_band)`. Replaces `libtetrabz_fermigr`.
+    """
 
     evaluator = prepare_response_evaluator(
         reciprocal_vectors,
@@ -188,7 +213,12 @@ def complex_frequency_polarization_weights(
     weight_grid_shape: tuple[int, int, int] | None = None,
     method: int | TetraMethod = "optimized",
 ) -> ComplexArray:
-    """Evaluate the complex-frequency polarization function. Replaces `libtetrabz_polcmplx`."""
+    """Evaluate the complex-frequency polarization function.
+
+    `energies` must be one-dimensional. The result has shape
+    `(nenergy, wx, wy, wz, ntarget, nsource)` with the last axes ordered
+    `(target_band, source_band)`. Replaces `libtetrabz_polcmplx`.
+    """
 
     evaluator = prepare_response_evaluator(
         reciprocal_vectors,
@@ -208,7 +238,11 @@ def static_polarization_weights(
     weight_grid_shape: tuple[int, int, int] | None = None,
     method: int | TetraMethod = "optimized",
 ) -> FloatArray:
-    """Evaluate the static polarization function. Replaces `libtetrabz_polstat`."""
+    """Evaluate the static polarization function.
+
+    The result has shape `(wx, wy, wz, ntarget, nsource)` with the last axes
+    ordered `(target_band, source_band)`. Replaces `libtetrabz_polstat`.
+    """
 
     evaluator = prepare_response_evaluator(
         reciprocal_vectors,

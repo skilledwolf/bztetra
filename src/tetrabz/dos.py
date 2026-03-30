@@ -25,7 +25,14 @@ def density_of_states_weights(
     weight_grid_shape: tuple[int, int, int] | None = None,
     method: int | TetraMethod = "optimized",
 ) -> FloatArray:
-    """Compute density-of-states weights on an energy grid. Replaces `libtetrabz_dos`."""
+    """Compute DOS weights for `(nx, ny, nz, nbands)` eigenvalues.
+
+    `energies` must be one-dimensional. The result has shape
+    `(nenergy, wx, wy, wz, nbands)`, where `(wx, wy, wz)` is `weight_grid_shape`
+    or the input grid when `weight_grid_shape` is omitted. Replaces
+    `libtetrabz_dos`. Set `method="linear"` only when reproducing the legacy
+    linear tetrahedron scheme.
+    """
 
     eig_flat, energy_grid_shape = normalize_eigenvalues(eigenvalues)
     sample_energies = normalize_energy_samples(energies)
@@ -49,7 +56,14 @@ def integrated_density_of_states_weights(
     weight_grid_shape: tuple[int, int, int] | None = None,
     method: int | TetraMethod = "optimized",
 ) -> FloatArray:
-    """Compute integrated DOS weights on an energy grid. Replaces `libtetrabz_intdos`."""
+    """Compute integrated-DOS weights for `(nx, ny, nz, nbands)` eigenvalues.
+
+    `energies` must be one-dimensional. The result has shape
+    `(nenergy, wx, wy, wz, nbands)`, where `(wx, wy, wz)` is `weight_grid_shape`
+    or the input grid when `weight_grid_shape` is omitted. Replaces
+    `libtetrabz_intdos`. Set `method="linear"` only when reproducing the legacy
+    linear tetrahedron scheme.
+    """
 
     eig_flat, energy_grid_shape = normalize_eigenvalues(eigenvalues)
     sample_energies = normalize_energy_samples(energies)

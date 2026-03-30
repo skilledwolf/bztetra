@@ -34,7 +34,13 @@ def occupation_weights(
     method: int | TetraMethod = "optimized",
     fermi_energy: float = 0.0,
 ) -> FloatArray:
-    """Compute occupation weights on a k-grid. Replaces `libtetrabz_occ`."""
+    """Compute occupation weights for `(nx, ny, nz, nbands)` eigenvalues.
+
+    `reciprocal_vectors` uses the legacy column-vector convention. The result
+    has shape `(wx, wy, wz, nbands)`, where `(wx, wy, wz)` is
+    `weight_grid_shape` or the input grid when `weight_grid_shape` is omitted.
+    Replaces `libtetrabz_occ`.
+    """
 
     eig_flat, energy_grid_shape = normalize_eigenvalues(eigenvalues)
     mesh = cached_integration_mesh(
@@ -105,7 +111,15 @@ def solve_fermi_energy(
     tolerance: float = 1.0e-10,
     max_iterations: int = 300,
 ) -> FermiEnergySolution:
-    """Solve for the Fermi energy and occupation weights. Replaces `libtetrabz_fermieng`."""
+    """Solve for the Fermi energy and occupation weights.
+
+    `eigenvalues` must have shape `(nx, ny, nz, nbands)`. The returned
+    `FermiEnergySolution.weights` array follows the same layout as
+    `occupation_weights`. `electrons_per_spin` is the target sum of the
+    returned occupation weights over the full k-grid and band axes. Set
+    `method="linear"` only when reproducing the legacy linear tetrahedron
+    scheme. Replaces `libtetrabz_fermieng`.
+    """
 
     return _find_fermi_energy(
         reciprocal_vectors,
