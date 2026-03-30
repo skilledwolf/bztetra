@@ -5,6 +5,7 @@ from dataclasses import dataclass
 import numpy as np
 import numpy.typing as npt
 from numba import njit
+from numba import prange
 
 from ._cut_kernels import accumulate_triangle_weight_sums
 from ._cut_kernels import small_tetra_volume_and_coefficients
@@ -328,6 +329,17 @@ def _fermi_golden_rule_weights_on_local_mesh(
     sample_energies: FloatArray,
 ) -> FloatArray:
     normalization = 6 * int(np.prod(mesh.energy_grid_shape, dtype=np.int64))
+    pair_count = occupied_tetra.shape[2] * target_tetra.shape[2]
+    if pair_count >= 16 and target_tetra.shape[2] >= 4:
+        return _fermi_golden_rule_weights_on_local_mesh_pair_parallel_numba(
+            mesh.local_point_indices,
+            mesh.tetrahedron_weight_matrix,
+            occupied_tetra,
+            target_tetra,
+            sample_energies,
+            mesh.local_point_count,
+            normalization,
+        )
     return _fermi_golden_rule_weights_on_local_mesh_numba(
         mesh.local_point_indices,
         mesh.tetrahedron_weight_matrix,
@@ -346,6 +358,17 @@ def _complex_polarization_weights_on_local_mesh(
     sample_energies: ComplexArray,
 ) -> ComplexArray:
     normalization = 6 * int(np.prod(mesh.energy_grid_shape, dtype=np.int64))
+    pair_count = occupied_tetra.shape[2] * target_tetra.shape[2]
+    if pair_count >= 16 and target_tetra.shape[2] >= 4:
+        return _complex_polarization_weights_on_local_mesh_pair_parallel_numba(
+            mesh.local_point_indices,
+            mesh.tetrahedron_weight_matrix,
+            occupied_tetra,
+            target_tetra,
+            sample_energies,
+            mesh.local_point_count,
+            normalization,
+        )
     return _complex_polarization_weights_on_local_mesh_numba(
         mesh.local_point_indices,
         mesh.tetrahedron_weight_matrix,
@@ -1341,7 +1364,7 @@ def _fill_triangle_affine3(energies: FloatArray, affine: FloatArray) -> None:
                 affine[row, column] = -energy / (energies[row] - energy)
 
 
-@njit(cache=True)
+@njit(cache=True, parallel=True)
 def _fermi_golden_rule_weights_on_local_mesh_numba(
     local_point_indices: npt.NDArray[np.int64],
     tetrahedron_weight_matrix: FloatArray,
@@ -1357,39 +1380,39 @@ def _fermi_golden_rule_weights_on_local_mesh_numba(
     energy_count = sample_energies.shape[0]
     local_weights = np.zeros((local_point_count, energy_count, target_band_count, source_band_count), dtype=np.float64)
 
-    sorted_order = np.empty(4, dtype=np.int64)
-    sorted_occupied = np.empty(4, dtype=np.float64)
-    sorted_target = np.empty((4, target_band_count), dtype=np.float64)
-    outer_weights = np.empty((energy_count, target_band_count, 4), dtype=np.float64)
-    point_weights = np.empty(20, dtype=np.float64)
+    for source_band_index in prange(source_band_count):
+        sorted_order = np.empty(4, dtype=np.int64)
+        sorted_occupied = np.empty(4, dtype=np.float64)
+        sorted_target = np.empty((4, target_band_count), dtype=np.float64)
+        outer_weights = np.empty((energy_count, target_band_count, 4), dtype=np.float64)
+        point_weights = np.empty(20, dtype=np.float64)
 
-    outer_strict = np.empty(4, dtype=np.float64)
-    outer_affine = np.empty((4, 4), dtype=np.float64)
-    outer_coefficients = np.empty((4, 4), dtype=np.float64)
-    transformed_occupied = np.empty(4, dtype=np.float64)
-    transformed_target = np.empty((4, target_band_count), dtype=np.float64)
+        outer_strict = np.empty(4, dtype=np.float64)
+        outer_affine = np.empty((4, 4), dtype=np.float64)
+        outer_coefficients = np.empty((4, 4), dtype=np.float64)
+        transformed_occupied = np.empty(4, dtype=np.float64)
+        transformed_target = np.empty((4, target_band_count), dtype=np.float64)
 
-    secondary_weights = np.empty((energy_count, target_band_count, 4), dtype=np.float64)
-    step_energies = np.empty(4, dtype=np.float64)
-    secondary_sorted_order = np.empty(4, dtype=np.int64)
-    secondary_sorted_step_energies = np.empty(4, dtype=np.float64)
-    secondary_sorted_target = np.empty(4, dtype=np.float64)
-    secondary_sorted_occupied = np.empty(4, dtype=np.float64)
-    secondary_sorted_weights = np.empty((energy_count, 4), dtype=np.float64)
-    inner_strict = np.empty(4, dtype=np.float64)
-    inner_affine = np.empty((4, 4), dtype=np.float64)
-    inner_coefficients = np.empty((4, 4), dtype=np.float64)
-    energy_differences = np.empty(4, dtype=np.float64)
-    delta_weights = np.empty((energy_count, 4), dtype=np.float64)
-    delta_sorted_order = np.empty(4, dtype=np.int64)
-    delta_sorted_energies = np.empty(4, dtype=np.float64)
-    delta_shifted_energies = np.empty(4, dtype=np.float64)
-    triangle_strict = np.empty(4, dtype=np.float64)
-    triangle_affine = np.empty((4, 4), dtype=np.float64)
-    triangle_coefficients = np.empty((3, 4), dtype=np.float64)
+        secondary_weights = np.empty((energy_count, target_band_count, 4), dtype=np.float64)
+        step_energies = np.empty(4, dtype=np.float64)
+        secondary_sorted_order = np.empty(4, dtype=np.int64)
+        secondary_sorted_step_energies = np.empty(4, dtype=np.float64)
+        secondary_sorted_target = np.empty(4, dtype=np.float64)
+        secondary_sorted_occupied = np.empty(4, dtype=np.float64)
+        secondary_sorted_weights = np.empty((energy_count, 4), dtype=np.float64)
+        inner_strict = np.empty(4, dtype=np.float64)
+        inner_affine = np.empty((4, 4), dtype=np.float64)
+        inner_coefficients = np.empty((4, 4), dtype=np.float64)
+        energy_differences = np.empty(4, dtype=np.float64)
+        delta_weights = np.empty((energy_count, 4), dtype=np.float64)
+        delta_sorted_order = np.empty(4, dtype=np.int64)
+        delta_sorted_energies = np.empty(4, dtype=np.float64)
+        delta_shifted_energies = np.empty(4, dtype=np.float64)
+        triangle_strict = np.empty(4, dtype=np.float64)
+        triangle_affine = np.empty((4, 4), dtype=np.float64)
+        triangle_coefficients = np.empty((3, 4), dtype=np.float64)
 
-    for tetrahedron_index in range(tetrahedron_count):
-        for source_band_index in range(source_band_count):
+        for tetrahedron_index in range(tetrahedron_count):
             sort4(
                 occupied_tetra[tetrahedron_index, :, source_band_index],
                 sorted_order,
@@ -1556,6 +1579,233 @@ def _fermi_golden_rule_weights_on_local_mesh_numba(
                             target_band_index,
                             source_band_index,
                         ] += point_weights[point_index]
+
+    local_weights /= float(normalization)
+    return local_weights
+
+
+@njit(cache=True, parallel=True)
+def _fermi_golden_rule_weights_on_local_mesh_pair_parallel_numba(
+    local_point_indices: npt.NDArray[np.int64],
+    tetrahedron_weight_matrix: FloatArray,
+    occupied_tetra: FloatArray,
+    target_tetra: FloatArray,
+    sample_energies: FloatArray,
+    local_point_count: int,
+    normalization: int,
+) -> FloatArray:
+    tetrahedron_count = occupied_tetra.shape[0]
+    source_band_count = occupied_tetra.shape[2]
+    target_band_count = target_tetra.shape[2]
+    energy_count = sample_energies.shape[0]
+    pair_count = source_band_count * target_band_count
+    local_weights = np.zeros((local_point_count, energy_count, target_band_count, source_band_count), dtype=np.float64)
+
+    for pair_index in prange(pair_count):
+        source_band_index = pair_index // target_band_count
+        target_band_index = pair_index % target_band_count
+
+        sorted_order = np.empty(4, dtype=np.int64)
+        sorted_occupied = np.empty(4, dtype=np.float64)
+        sorted_target = np.empty((4, 1), dtype=np.float64)
+        full_target = np.empty((4, 1), dtype=np.float64)
+        outer_weights = np.empty((energy_count, 1, 4), dtype=np.float64)
+        point_weights = np.empty(20, dtype=np.float64)
+
+        outer_strict = np.empty(4, dtype=np.float64)
+        outer_affine = np.empty((4, 4), dtype=np.float64)
+        outer_coefficients = np.empty((4, 4), dtype=np.float64)
+        transformed_occupied = np.empty(4, dtype=np.float64)
+        transformed_target = np.empty((4, 1), dtype=np.float64)
+
+        secondary_weights = np.empty((energy_count, 1, 4), dtype=np.float64)
+        step_energies = np.empty(4, dtype=np.float64)
+        secondary_sorted_order = np.empty(4, dtype=np.int64)
+        secondary_sorted_step_energies = np.empty(4, dtype=np.float64)
+        secondary_sorted_target = np.empty(4, dtype=np.float64)
+        secondary_sorted_occupied = np.empty(4, dtype=np.float64)
+        secondary_sorted_weights = np.empty((energy_count, 4), dtype=np.float64)
+        inner_strict = np.empty(4, dtype=np.float64)
+        inner_affine = np.empty((4, 4), dtype=np.float64)
+        inner_coefficients = np.empty((4, 4), dtype=np.float64)
+        energy_differences = np.empty(4, dtype=np.float64)
+        delta_weights = np.empty((energy_count, 4), dtype=np.float64)
+        delta_sorted_order = np.empty(4, dtype=np.int64)
+        delta_sorted_energies = np.empty(4, dtype=np.float64)
+        delta_shifted_energies = np.empty(4, dtype=np.float64)
+        triangle_strict = np.empty(4, dtype=np.float64)
+        triangle_affine = np.empty((4, 4), dtype=np.float64)
+        triangle_coefficients = np.empty((3, 4), dtype=np.float64)
+
+        for tetrahedron_index in range(tetrahedron_count):
+            sort4(
+                occupied_tetra[tetrahedron_index, :, source_band_index],
+                sorted_order,
+                sorted_occupied,
+            )
+            for vertex_index in range(4):
+                source_vertex = sorted_order[vertex_index]
+                sorted_target[vertex_index, 0] = target_tetra[
+                    tetrahedron_index,
+                    source_vertex,
+                    target_band_index,
+                ]
+                full_target[vertex_index, 0] = target_tetra[
+                    tetrahedron_index,
+                    vertex_index,
+                    target_band_index,
+                ]
+
+            outer_weights[:, :, :] = 0.0
+            if sorted_occupied[0] <= 0.0 < sorted_occupied[1]:
+                _accumulate_small_tetra_fermigr_outer_numba(
+                    outer_weights,
+                    0,
+                    sorted_order,
+                    sorted_occupied,
+                    sorted_target,
+                    sample_energies,
+                    1,
+                    outer_strict,
+                    outer_affine,
+                    outer_coefficients,
+                    transformed_occupied,
+                    transformed_target,
+                    secondary_weights,
+                    step_energies,
+                    secondary_sorted_order,
+                    secondary_sorted_step_energies,
+                    secondary_sorted_target,
+                    secondary_sorted_occupied,
+                    secondary_sorted_weights,
+                    inner_strict,
+                    inner_affine,
+                    inner_coefficients,
+                    energy_differences,
+                    delta_weights,
+                    delta_sorted_order,
+                    delta_sorted_energies,
+                    delta_shifted_energies,
+                    triangle_strict,
+                    triangle_affine,
+                    triangle_coefficients,
+                )
+            elif sorted_occupied[1] <= 0.0 < sorted_occupied[2]:
+                for case_id in (1, 2, 3):
+                    _accumulate_small_tetra_fermigr_outer_numba(
+                        outer_weights,
+                        case_id,
+                        sorted_order,
+                        sorted_occupied,
+                        sorted_target,
+                        sample_energies,
+                        1,
+                        outer_strict,
+                        outer_affine,
+                        outer_coefficients,
+                        transformed_occupied,
+                        transformed_target,
+                        secondary_weights,
+                        step_energies,
+                        secondary_sorted_order,
+                        secondary_sorted_step_energies,
+                        secondary_sorted_target,
+                        secondary_sorted_occupied,
+                        secondary_sorted_weights,
+                        inner_strict,
+                        inner_affine,
+                        inner_coefficients,
+                        energy_differences,
+                        delta_weights,
+                        delta_sorted_order,
+                        delta_sorted_energies,
+                        delta_shifted_energies,
+                        triangle_strict,
+                        triangle_affine,
+                        triangle_coefficients,
+                    )
+            elif sorted_occupied[2] <= 0.0 < sorted_occupied[3]:
+                for case_id in (4, 5, 6):
+                    _accumulate_small_tetra_fermigr_outer_numba(
+                        outer_weights,
+                        case_id,
+                        sorted_order,
+                        sorted_occupied,
+                        sorted_target,
+                        sample_energies,
+                        1,
+                        outer_strict,
+                        outer_affine,
+                        outer_coefficients,
+                        transformed_occupied,
+                        transformed_target,
+                        secondary_weights,
+                        step_energies,
+                        secondary_sorted_order,
+                        secondary_sorted_step_energies,
+                        secondary_sorted_target,
+                        secondary_sorted_occupied,
+                        secondary_sorted_weights,
+                        inner_strict,
+                        inner_affine,
+                        inner_coefficients,
+                        energy_differences,
+                        delta_weights,
+                        delta_sorted_order,
+                        delta_sorted_energies,
+                        delta_shifted_energies,
+                        triangle_strict,
+                        triangle_affine,
+                        triangle_coefficients,
+                    )
+            elif sorted_occupied[3] <= 0.0:
+                _fermigr_secondary_weights_numba(
+                    occupied_tetra[tetrahedron_index, :, source_band_index],
+                    full_target,
+                    sample_energies,
+                    secondary_weights,
+                    step_energies,
+                    secondary_sorted_order,
+                    secondary_sorted_step_energies,
+                    secondary_sorted_target,
+                    secondary_sorted_occupied,
+                    secondary_sorted_weights,
+                    inner_strict,
+                    inner_affine,
+                    inner_coefficients,
+                    energy_differences,
+                    delta_weights,
+                    delta_sorted_order,
+                    delta_sorted_energies,
+                    delta_shifted_energies,
+                    triangle_strict,
+                    triangle_affine,
+                    triangle_coefficients,
+                )
+                for energy_index in range(energy_count):
+                    for vertex_index in range(4):
+                        outer_weights[energy_index, 0, vertex_index] += secondary_weights[
+                            energy_index,
+                            0,
+                            vertex_index,
+                        ]
+
+            for energy_index in range(energy_count):
+                for point_index in range(20):
+                    total = 0.0
+                    for vertex_index in range(4):
+                        total += outer_weights[energy_index, 0, vertex_index] * tetrahedron_weight_matrix[
+                            vertex_index,
+                            point_index,
+                        ]
+                    point_weights[point_index] = total
+                for point_index in range(20):
+                    local_weights[
+                        local_point_indices[tetrahedron_index, point_index],
+                        energy_index,
+                        target_band_index,
+                        source_band_index,
+                    ] += point_weights[point_index]
 
     local_weights /= float(normalization)
     return local_weights
@@ -1906,7 +2156,7 @@ def _fermigr_delta_weights_numba(
             )
 
 
-@njit(cache=True)
+@njit(cache=True, parallel=True)
 def _complex_polarization_weights_on_local_mesh_numba(
     local_point_indices: npt.NDArray[np.int64],
     tetrahedron_weight_matrix: FloatArray,
@@ -1922,33 +2172,33 @@ def _complex_polarization_weights_on_local_mesh_numba(
     energy_count = sample_energies.shape[0]
     local_weights = np.zeros((local_point_count, energy_count, target_band_count, source_band_count), dtype=np.complex128)
 
-    sorted_order = np.empty(4, dtype=np.int64)
-    sorted_occupied = np.empty(4, dtype=np.float64)
-    sorted_target = np.empty((4, target_band_count), dtype=np.float64)
-    outer_weights = np.empty((energy_count, target_band_count, 4), dtype=np.complex128)
-    point_weights = np.empty(20, dtype=np.complex128)
+    for source_band_index in prange(source_band_count):
+        sorted_order = np.empty(4, dtype=np.int64)
+        sorted_occupied = np.empty(4, dtype=np.float64)
+        sorted_target = np.empty((4, target_band_count), dtype=np.float64)
+        outer_weights = np.empty((energy_count, target_band_count, 4), dtype=np.complex128)
+        point_weights = np.empty(20, dtype=np.complex128)
 
-    outer_strict = np.empty(4, dtype=np.float64)
-    outer_affine = np.empty((4, 4), dtype=np.float64)
-    outer_coefficients = np.empty((4, 4), dtype=np.float64)
-    transformed_occupied = np.empty(4, dtype=np.float64)
-    transformed_target = np.empty((4, target_band_count), dtype=np.float64)
+        outer_strict = np.empty(4, dtype=np.float64)
+        outer_affine = np.empty((4, 4), dtype=np.float64)
+        outer_coefficients = np.empty((4, 4), dtype=np.float64)
+        transformed_occupied = np.empty(4, dtype=np.float64)
+        transformed_target = np.empty((4, target_band_count), dtype=np.float64)
 
-    secondary_weights = np.empty((energy_count, target_band_count, 4), dtype=np.complex128)
-    step_energies = np.empty(4, dtype=np.float64)
-    secondary_sorted_order = np.empty(4, dtype=np.int64)
-    secondary_sorted_step_energies = np.empty(4, dtype=np.float64)
-    secondary_sorted_target = np.empty(4, dtype=np.float64)
-    secondary_sorted_occupied = np.empty(4, dtype=np.float64)
-    secondary_sorted_weights = np.empty((energy_count, 4), dtype=np.complex128)
-    inner_strict = np.empty(4, dtype=np.float64)
-    inner_affine = np.empty((4, 4), dtype=np.float64)
-    inner_coefficients = np.empty((4, 4), dtype=np.float64)
-    energy_differences = np.empty(4, dtype=np.float64)
-    sample_weights = np.empty((energy_count, 4), dtype=np.complex128)
+        secondary_weights = np.empty((energy_count, target_band_count, 4), dtype=np.complex128)
+        step_energies = np.empty(4, dtype=np.float64)
+        secondary_sorted_order = np.empty(4, dtype=np.int64)
+        secondary_sorted_step_energies = np.empty(4, dtype=np.float64)
+        secondary_sorted_target = np.empty(4, dtype=np.float64)
+        secondary_sorted_occupied = np.empty(4, dtype=np.float64)
+        secondary_sorted_weights = np.empty((energy_count, 4), dtype=np.complex128)
+        inner_strict = np.empty(4, dtype=np.float64)
+        inner_affine = np.empty((4, 4), dtype=np.float64)
+        inner_coefficients = np.empty((4, 4), dtype=np.float64)
+        energy_differences = np.empty(4, dtype=np.float64)
+        sample_weights = np.empty((energy_count, 4), dtype=np.complex128)
 
-    for tetrahedron_index in range(tetrahedron_count):
-        for source_band_index in range(source_band_count):
+        for tetrahedron_index in range(tetrahedron_count):
             sort4(
                 occupied_tetra[tetrahedron_index, :, source_band_index],
                 sorted_order,
@@ -2091,6 +2341,203 @@ def _complex_polarization_weights_on_local_mesh_numba(
                             target_band_index,
                             source_band_index,
                         ] += point_weights[point_index]
+
+    local_weights /= float(normalization)
+    return local_weights
+
+
+@njit(cache=True, parallel=True)
+def _complex_polarization_weights_on_local_mesh_pair_parallel_numba(
+    local_point_indices: npt.NDArray[np.int64],
+    tetrahedron_weight_matrix: FloatArray,
+    occupied_tetra: FloatArray,
+    target_tetra: FloatArray,
+    sample_energies: ComplexArray,
+    local_point_count: int,
+    normalization: int,
+) -> ComplexArray:
+    tetrahedron_count = occupied_tetra.shape[0]
+    source_band_count = occupied_tetra.shape[2]
+    target_band_count = target_tetra.shape[2]
+    energy_count = sample_energies.shape[0]
+    pair_count = source_band_count * target_band_count
+    local_weights = np.zeros((local_point_count, energy_count, target_band_count, source_band_count), dtype=np.complex128)
+
+    for pair_index in prange(pair_count):
+        source_band_index = pair_index // target_band_count
+        target_band_index = pair_index % target_band_count
+
+        sorted_order = np.empty(4, dtype=np.int64)
+        sorted_occupied = np.empty(4, dtype=np.float64)
+        sorted_target = np.empty((4, 1), dtype=np.float64)
+        full_target = np.empty((4, 1), dtype=np.float64)
+        outer_weights = np.empty((energy_count, 1, 4), dtype=np.complex128)
+        point_weights = np.empty(20, dtype=np.complex128)
+
+        outer_strict = np.empty(4, dtype=np.float64)
+        outer_affine = np.empty((4, 4), dtype=np.float64)
+        outer_coefficients = np.empty((4, 4), dtype=np.float64)
+        transformed_occupied = np.empty(4, dtype=np.float64)
+        transformed_target = np.empty((4, 1), dtype=np.float64)
+
+        secondary_weights = np.empty((energy_count, 1, 4), dtype=np.complex128)
+        step_energies = np.empty(4, dtype=np.float64)
+        secondary_sorted_order = np.empty(4, dtype=np.int64)
+        secondary_sorted_step_energies = np.empty(4, dtype=np.float64)
+        secondary_sorted_target = np.empty(4, dtype=np.float64)
+        secondary_sorted_occupied = np.empty(4, dtype=np.float64)
+        secondary_sorted_weights = np.empty((energy_count, 4), dtype=np.complex128)
+        inner_strict = np.empty(4, dtype=np.float64)
+        inner_affine = np.empty((4, 4), dtype=np.float64)
+        inner_coefficients = np.empty((4, 4), dtype=np.float64)
+        energy_differences = np.empty(4, dtype=np.float64)
+        sample_weights = np.empty((energy_count, 4), dtype=np.complex128)
+
+        for tetrahedron_index in range(tetrahedron_count):
+            sort4(
+                occupied_tetra[tetrahedron_index, :, source_band_index],
+                sorted_order,
+                sorted_occupied,
+            )
+            for vertex_index in range(4):
+                source_vertex = sorted_order[vertex_index]
+                sorted_target[vertex_index, 0] = target_tetra[
+                    tetrahedron_index,
+                    source_vertex,
+                    target_band_index,
+                ]
+                full_target[vertex_index, 0] = target_tetra[
+                    tetrahedron_index,
+                    vertex_index,
+                    target_band_index,
+                ]
+
+            outer_weights[:, :, :] = 0.0j
+            if sorted_occupied[0] <= 0.0 < sorted_occupied[1]:
+                _accumulate_small_tetra_polcmplx_outer_numba(
+                    outer_weights,
+                    0,
+                    sorted_order,
+                    sorted_occupied,
+                    sorted_target,
+                    sample_energies,
+                    1,
+                    outer_strict,
+                    outer_affine,
+                    outer_coefficients,
+                    transformed_occupied,
+                    transformed_target,
+                    secondary_weights,
+                    step_energies,
+                    secondary_sorted_order,
+                    secondary_sorted_step_energies,
+                    secondary_sorted_target,
+                    secondary_sorted_occupied,
+                    secondary_sorted_weights,
+                    inner_strict,
+                    inner_affine,
+                    inner_coefficients,
+                    energy_differences,
+                    sample_weights,
+                )
+            elif sorted_occupied[1] <= 0.0 < sorted_occupied[2]:
+                for case_id in (1, 2, 3):
+                    _accumulate_small_tetra_polcmplx_outer_numba(
+                        outer_weights,
+                        case_id,
+                        sorted_order,
+                        sorted_occupied,
+                        sorted_target,
+                        sample_energies,
+                        1,
+                        outer_strict,
+                        outer_affine,
+                        outer_coefficients,
+                        transformed_occupied,
+                        transformed_target,
+                        secondary_weights,
+                        step_energies,
+                        secondary_sorted_order,
+                        secondary_sorted_step_energies,
+                        secondary_sorted_target,
+                        secondary_sorted_occupied,
+                        secondary_sorted_weights,
+                        inner_strict,
+                        inner_affine,
+                        inner_coefficients,
+                        energy_differences,
+                        sample_weights,
+                    )
+            elif sorted_occupied[2] <= 0.0 < sorted_occupied[3]:
+                for case_id in (4, 5, 6):
+                    _accumulate_small_tetra_polcmplx_outer_numba(
+                        outer_weights,
+                        case_id,
+                        sorted_order,
+                        sorted_occupied,
+                        sorted_target,
+                        sample_energies,
+                        1,
+                        outer_strict,
+                        outer_affine,
+                        outer_coefficients,
+                        transformed_occupied,
+                        transformed_target,
+                        secondary_weights,
+                        step_energies,
+                        secondary_sorted_order,
+                        secondary_sorted_step_energies,
+                        secondary_sorted_target,
+                        secondary_sorted_occupied,
+                        secondary_sorted_weights,
+                        inner_strict,
+                        inner_affine,
+                        inner_coefficients,
+                        energy_differences,
+                        sample_weights,
+                    )
+            elif sorted_occupied[3] <= 0.0:
+                _polcmplx_secondary_weights_numba(
+                    occupied_tetra[tetrahedron_index, :, source_band_index],
+                    full_target,
+                    sample_energies,
+                    secondary_weights,
+                    step_energies,
+                    secondary_sorted_order,
+                    secondary_sorted_step_energies,
+                    secondary_sorted_target,
+                    secondary_sorted_occupied,
+                    secondary_sorted_weights,
+                    inner_strict,
+                    inner_affine,
+                    inner_coefficients,
+                    energy_differences,
+                    sample_weights,
+                )
+                for energy_index in range(energy_count):
+                    for vertex_index in range(4):
+                        outer_weights[energy_index, 0, vertex_index] += secondary_weights[
+                            energy_index,
+                            0,
+                            vertex_index,
+                        ]
+
+            for energy_index in range(energy_count):
+                for point_index in range(20):
+                    total = 0.0j
+                    for vertex_index in range(4):
+                        total += outer_weights[energy_index, 0, vertex_index] * tetrahedron_weight_matrix[
+                            vertex_index,
+                            point_index,
+                        ]
+                    point_weights[point_index] = total
+                for point_index in range(20):
+                    local_weights[
+                        local_point_indices[tetrahedron_index, point_index],
+                        energy_index,
+                        target_band_index,
+                        source_band_index,
+                    ] += point_weights[point_index]
 
     local_weights /= float(normalization)
     return local_weights

@@ -17,6 +17,8 @@ The implementation strategy is:
 - Shared setup is also optimized now: direct repeated calls reuse cached mesh
   geometry internally, and tetrahedron interpolation is compiled instead of
   running in Python loops.
+- Multiband dynamic-response kernels now parallelize over source bands, which
+  materially improves `fermigr` and `polcmplx` once band counts grow.
 - A prepared response API for repeated sweeps on fixed bands, so
   `fermigr`/`polcmplx` users can reuse mesh and tetrahedron setup instead of
   rebuilding it for every energy grid.
@@ -114,4 +116,11 @@ path, run:
 
 ```bash
 PYTHONPATH=src .venv/bin/python benchmarks/benchmark_polstat.py --grid 16 --weight-grid 8 --q-values 0.125,2.0
+```
+
+For a focused multiband frequency-response benchmark that compares direct and
+prepared `fermigr` / `polcmplx` sweeps, run:
+
+```bash
+PYTHONPATH=src .venv/bin/python benchmarks/benchmark_response_multiband.py --grid 16 --bands 6 --energy-count 16
 ```
