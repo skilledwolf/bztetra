@@ -262,6 +262,82 @@ def exact_fermigr_weighted_integrals() -> FloatArray:
     )
 
 
+def polcmplx_energy_points() -> np.ndarray:
+    return np.array([-2.0 + 1.0j, 0.0 + 2.0j, 1.0 - 0.5j], dtype=np.complex128)
+
+
+def legacy_8x8_polcmplx_weighted_integrals() -> np.ndarray:
+    return np.array(
+        [
+            [
+                [-0.82081 - 0.75727j, -0.13009 - 0.088963j],
+                [-1.1552 - 0.77013j, -0.18956 - 0.10832j],
+            ],
+            [
+                [0.27000 - 0.75909j, 0.030575 - 0.13336j],
+                [0.29446 - 1.1779j, 0.027081 - 0.21664j],
+            ],
+            [
+                [0.96102 + 0.30223j, 0.17653 + 0.063598j],
+                [1.5018 + 0.50059j, 0.30349 + 0.12140j],
+            ],
+        ],
+        dtype=np.complex128,
+    )
+
+
+def legacy_16x8_polcmplx_weighted_integrals() -> np.ndarray:
+    return np.array(
+        [
+            [
+                [-0.90780 - 0.80092j, -0.15323 - 0.10300j],
+                [-1.2620 - 0.84130j, -0.22521 - 0.12869j],
+            ],
+            [
+                [0.29335 - 0.83629j, 0.035394 - 0.15828j],
+                [0.32168 - 1.2867j, 0.032173 - 0.25738j],
+            ],
+            [
+                [1.0534 + 0.32932j, 0.20943 + 0.075401j],
+                [1.6405 + 0.54685j, 0.36056 + 0.14422j],
+            ],
+        ],
+        dtype=np.complex128,
+    )
+
+
+def exact_polcmplx_weighted_integrals() -> np.ndarray:
+    energies = polcmplx_energy_points()
+    values = np.zeros((energies.size, 2, 2), dtype=np.complex128)
+    values[:, 0, 0] = np.array(
+        [
+            -0.838243341280338 - 0.734201894333234j,
+            0.270393588876530 - 0.771908416949610j,
+            0.970996830573510 + 0.302792326476720j,
+        ],
+        dtype=np.complex128,
+    )
+    values[:, 0, 1] = np.array(
+        [
+            -0.130765724778920 - 0.087431218706638j,
+            0.030121954547245 - 0.135354254293510j,
+            0.178882244951203 + 0.064232167683425j,
+        ],
+        dtype=np.complex128,
+    )
+    values[:, 1, 0] = (8.0 * np.pi) / (5.0 * (1.0 + 2.0 * energies))
+    values[:, 1, 1] = (np.sqrt(8.0) * np.pi) / (5.0 * (1.0 + 4.0 * energies))
+    return values
+
+
+def exact_polcmplx_constant_gap_channels(energies: np.ndarray) -> np.ndarray:
+    samples = np.asarray(energies, dtype=np.complex128)
+    values = np.empty((samples.size, 2), dtype=np.complex128)
+    values[:, 0] = (8.0 * np.pi) / (5.0 * (1.0 + 2.0 * samples))
+    values[:, 1] = (np.sqrt(8.0) * np.pi) / (5.0 * (1.0 + 4.0 * samples))
+    return values
+
+
 def lindhard_q_points(count: int = 31, qmax: float = 4.0) -> FloatArray:
     return np.linspace(0.0, qmax, count, dtype=np.float64)
 

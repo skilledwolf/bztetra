@@ -9,9 +9,11 @@ from .response import dblstep
 from .response import dbldelta
 from .response import double_delta_weights
 from .response import double_step_weights
+from .response import complex_polarization_weights
 from .response import fermi_golden_rule_weights
 from .response import fermigr
 from .response import polstat
+from .response import polcmplx
 from .response import static_polarization_weights
 from .formulas import SimplexCut
 from .geometry import IntegrationMesh
@@ -32,6 +34,7 @@ __all__ = [
     "SimplexCut",
     "__version__",
     "build_integration_mesh",
+    "complex_polarization_weights",
     "dblstep",
     "dbldelta",
     "density_of_states_weights",
@@ -45,6 +48,7 @@ __all__ = [
     "intdos",
     "occ",
     "occupation_weights",
+    "polcmplx",
     "polstat",
     "simplex_affine_coefficients",
     "solve_fermi_energy",

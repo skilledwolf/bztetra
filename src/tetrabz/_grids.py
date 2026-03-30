@@ -8,6 +8,7 @@ from .geometry import trilinear_interpolation_indices
 
 
 FloatArray = npt.NDArray[np.float64]
+ComplexArray = npt.NDArray[np.complex128]
 
 
 def normalize_eigenvalues(eigenvalues: npt.ArrayLike) -> tuple[FloatArray, tuple[int, int, int]]:
@@ -32,6 +33,15 @@ def normalize_energy_samples(energies: npt.ArrayLike) -> FloatArray:
     return values
 
 
+def normalize_complex_energy_samples(energies: npt.ArrayLike) -> ComplexArray:
+    values = np.asarray(energies, dtype=np.complex128)
+    if values.ndim != 1:
+        raise ValueError("expected a one-dimensional complex energy grid")
+    if not np.all(np.isfinite(values)):
+        raise ValueError("complex energy samples must be finite")
+    return values
+
+
 def interpolated_tetrahedron_energies(mesh: IntegrationMesh, eig_flat: FloatArray) -> FloatArray:
     tetrahedron_count = mesh.tetrahedron_count
     band_count = eig_flat.shape[1]
@@ -45,7 +55,7 @@ def interpolated_tetrahedron_energies(mesh: IntegrationMesh, eig_flat: FloatArra
     return tetra_band_energies
 
 
-def interpolate_local_values(mesh: IntegrationMesh, local_values: FloatArray) -> FloatArray:
+def interpolate_local_values(mesh: IntegrationMesh, local_values: npt.NDArray[np.generic]) -> npt.NDArray[np.generic]:
     if local_values.shape[0] != mesh.local_point_count:
         raise ValueError("local values must be indexed by the mesh local-point axis")
 
@@ -58,7 +68,7 @@ def interpolate_local_values(mesh: IntegrationMesh, local_values: FloatArray) ->
     flattened_features = local_values.reshape(local_values.shape[0], -1)
     output_flat = np.zeros(
         (int(np.prod(mesh.weight_grid_shape, dtype=np.int64)), flattened_features.shape[1]),
-        dtype=np.float64,
+        dtype=flattened_features.dtype,
     )
     for local_index, kpoint in enumerate(mesh.fractional_kpoints):
         indices, weights = trilinear_interpolation_indices(mesh.weight_grid_shape, kpoint)

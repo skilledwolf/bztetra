@@ -1,6 +1,7 @@
 from tetrabz import __version__
 from tetrabz import build_integration_mesh
 from tetrabz import occ
+from tetrabz import polcmplx
 from tetrabz import small_tetrahedron_cut
 
 
@@ -11,4 +12,5 @@ def test_package_version_is_exposed() -> None:
 def test_core_exports_are_available() -> None:
     assert callable(build_integration_mesh)
     assert callable(occ)
+    assert callable(polcmplx)
     assert callable(small_tetrahedron_cut)

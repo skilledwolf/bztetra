@@ -11,6 +11,7 @@ from tetrabz import dos
 from tetrabz import fermigr
 from tetrabz import intdos
 from tetrabz import occ
+from tetrabz import polcmplx
 from tetrabz import polstat
 
 
@@ -21,6 +22,7 @@ def main() -> None:
     args = _parse_args()
     grid_shape = (args.grid, args.grid, args.grid)
     sample_energies = np.linspace(0.0, 1.25, args.energy_count, dtype=np.float64)
+    complex_sample_energies = sample_energies + 0.5j
 
     reciprocal_vectors = np.diag([3.0, 3.0, 3.0]).astype(np.float64)
     scalar_bands = _free_electron_bands(reciprocal_vectors, grid_shape)
@@ -95,6 +97,17 @@ def main() -> None:
                 response_occupied_bands,
                 response_target_bands,
                 sample_energies,
+                weight_grid_shape=grid_shape,
+                method=args.method,
+            ),
+        ),
+        (
+            "polcmplx",
+            lambda: polcmplx(
+                reciprocal_vectors,
+                response_occupied_bands,
+                response_target_bands,
+                complex_sample_energies,
                 weight_grid_shape=grid_shape,
                 method=args.method,
             ),

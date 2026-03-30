@@ -13,8 +13,7 @@ The implementation strategy is:
 - NumPy for array orchestration and test/reference helpers.
 - Numba for hot scalar and tensor kernels once the numerical contracts are
   locked down. The occupation, DOS, integrated-DOS, `dblstep`, `dbldelta`,
-  `polstat`, and `fermigr` paths are now compiled; `polcmplx` is the remaining
-  major kernel family in scope.
+  `polstat`, `fermigr`, and `polcmplx` paths are now compiled.
 - SciPy only where it materially helps validation, reference calculations, or
   tooling; it is not a planned dependency for the core runtime path right now.
 
@@ -67,6 +66,14 @@ and write a figure under `build/review_plots/`:
 .venv/bin/python examples/plot_fermigr.py
 ```
 
+For a physically meaningful complex-frequency review plot, reproduce the
+broadened free-electron interband response with exact comparison channels and
+write a figure under `build/review_plots/`:
+
+```bash
+.venv/bin/python examples/plot_polcmplx.py
+```
+
 For a numeric DOS / integrated-DOS review that compares the current 8x8
 free-electron fixture against the analytic continuum target, run:
 
@@ -75,7 +82,7 @@ free-electron fixture against the analytic continuum target, run:
 ```
 
 For a quick local timing baseline on the current hot paths (`occ`, `dos`,
-`intdos`, `dblstep`, `dbldelta`, `polstat`, `fermigr`), run:
+`intdos`, `dblstep`, `dbldelta`, `polstat`, `fermigr`, `polcmplx`), run:
 
 ```bash
 PYTHONPATH=src .venv/bin/python benchmarks/benchmark_hotpaths.py
