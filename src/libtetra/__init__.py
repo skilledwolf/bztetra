@@ -1,8 +1,12 @@
 """Compatibility shim while the package name transitions to ``tetrabz``."""
 
 from tetrabz import __version__
+from tetrabz import dblstep
+from tetrabz import dbldelta
 from tetrabz import density_of_states_weights
 from tetrabz import dos
+from tetrabz import double_delta_weights
+from tetrabz import double_step_weights
 from tetrabz import IntegrationMesh
 from tetrabz import integrated_density_of_states_weights
 from tetrabz import intdos
@@ -21,8 +25,12 @@ from tetrabz import trilinear_interpolation_indices
 
 __all__ = [
     "__version__",
+    "dblstep",
+    "dbldelta",
     "density_of_states_weights",
     "dos",
+    "double_delta_weights",
+    "double_step_weights",
     "IntegrationMesh",
     "integrated_density_of_states_weights",
     "intdos",

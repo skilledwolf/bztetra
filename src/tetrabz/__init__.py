@@ -5,6 +5,10 @@ from .dos import density_of_states_weights
 from .dos import dos
 from .dos import integrated_density_of_states_weights
 from .dos import intdos
+from .response import dblstep
+from .response import dbldelta
+from .response import double_delta_weights
+from .response import double_step_weights
 from .formulas import SimplexCut
 from .geometry import IntegrationMesh
 from .geometry import build_integration_mesh
@@ -24,8 +28,12 @@ __all__ = [
     "SimplexCut",
     "__version__",
     "build_integration_mesh",
+    "dblstep",
+    "dbldelta",
     "density_of_states_weights",
     "dos",
+    "double_delta_weights",
+    "double_step_weights",
     "fermieng",
     "integrated_density_of_states_weights",
     "intdos",

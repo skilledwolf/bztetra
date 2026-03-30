@@ -112,6 +112,77 @@ def exact_free_electron_intdos_weighted_integrals(energies: np.ndarray) -> Float
     return expected
 
 
+def legacy_free_electron_response_case(
+    energy_grid_shape: tuple[int, int, int],
+    weight_grid_shape: tuple[int, int, int],
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    bvec, eig1, weight_metric = legacy_free_electron_case(energy_grid_shape, weight_grid_shape)
+    eig2 = make_response_eigenvalues(bvec, energy_grid_shape)
+    return bvec, eig1, eig2, weight_metric
+
+
+def make_response_eigenvalues(bvec: np.ndarray, grid_shape: tuple[int, int, int]) -> FloatArray:
+    nx, ny, nz = grid_shape
+    eigenvalues = np.empty((nx, ny, nz, 2), dtype=np.float64)
+
+    for x_index in range(nx):
+        for y_index in range(ny):
+            for z_index in range(nz):
+                kvec = np.array(
+                    [x_index / nx, y_index / ny, z_index / nz],
+                    dtype=np.float64,
+                )
+                kvec = kvec - np.rint(kvec)
+                kvec = bvec @ kvec
+                base = 0.5 * float(np.dot(kvec, kvec))
+                shifted = kvec.copy()
+                shifted[0] = shifted[0] + 1.0
+                eigenvalues[x_index, y_index, z_index, 0] = 0.5 * float(np.dot(shifted, shifted))
+                eigenvalues[x_index, y_index, z_index, 1] = base + 0.5
+
+    return eigenvalues
+
+
+def legacy_8x8_dblstep_weighted_integrals() -> FloatArray:
+    return np.array(
+        [
+            [0.48024, 0.12259],
+            [0.0, 0.0],
+        ],
+        dtype=np.float64,
+    )
+
+
+def legacy_8x8_dbldelta_weighted_integrals() -> FloatArray:
+    return np.array(
+        [
+            [6.0896, 3.2066],
+            [0.0, 0.0],
+        ],
+        dtype=np.float64,
+    )
+
+
+def exact_dblstep_weighted_integrals() -> FloatArray:
+    return np.array(
+        [
+            [49.0 * np.pi / 320.0, np.pi * (512.0 * np.sqrt(2.0) - 319.0) / 10240.0],
+            [0.0, 0.0],
+        ],
+        dtype=np.float64,
+    )
+
+
+def exact_dbldelta_weighted_integrals() -> FloatArray:
+    return np.array(
+        [
+            [2.0 * np.pi, np.pi],
+            [0.0, 0.0],
+        ],
+        dtype=np.float64,
+    )
+
+
 def tight_binding_dos_energy_points() -> FloatArray:
     return np.linspace(-3.0, 3.0, 100, dtype=np.float64)
 
