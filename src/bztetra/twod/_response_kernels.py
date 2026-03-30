@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 from numba import njit
+from numba import prange
 
 from ._triangle_kernels import sort3
 
@@ -248,6 +249,54 @@ def _static_polarization_weights_on_local_mesh_numba(
     return local_weights
 
 
+@njit(cache=True, parallel=True)
+def _static_polarization_weights_on_local_mesh_pair_parallel_numba(
+    local_point_indices,
+    occupied_triangles,
+    target_triangles,
+    local_point_count,
+    triangle_area,
+):
+    source_band_count = occupied_triangles.shape[2]
+    target_band_count = target_triangles.shape[2]
+    pair_count = source_band_count * target_band_count
+    local_weights = np.zeros((local_point_count, target_band_count, source_band_count), dtype=np.float64)
+
+    for pair_index in prange(pair_count):
+        source_band_index = pair_index // target_band_count
+        target_band_index = pair_index % target_band_count
+
+        parent_weights = np.empty(3, dtype=np.float64)
+        polygon_a = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
+        polygon_b = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
+        sorted_order = np.empty(3, dtype=np.int64)
+        sorted_delta = np.empty(3, dtype=np.float64)
+        sorted_weights = np.empty(3, dtype=np.float64)
+
+        for triangle_index in range(occupied_triangles.shape[0]):
+            occupied_vertices = occupied_triangles[triangle_index, :, source_band_index]
+            target_vertices = target_triangles[triangle_index, :, target_band_index]
+            _static_polarization_parent_weights_numba(
+                parent_weights,
+                occupied_vertices,
+                target_vertices,
+                triangle_area,
+                polygon_a,
+                polygon_b,
+                sorted_order,
+                sorted_delta,
+                sorted_weights,
+            )
+            for vertex_index in range(3):
+                local_weights[
+                    local_point_indices[triangle_index, vertex_index],
+                    target_band_index,
+                    source_band_index,
+                ] += parent_weights[vertex_index]
+
+    return local_weights
+
+
 @njit(cache=True)
 def _fermi_golden_rule_weights_on_local_mesh_numba(
     local_point_indices,
@@ -300,6 +349,62 @@ def _fermi_golden_rule_weights_on_local_mesh_numba(
     return local_weights
 
 
+@njit(cache=True, parallel=True)
+def _fermi_golden_rule_weights_on_local_mesh_pair_parallel_numba(
+    local_point_indices,
+    occupied_triangles,
+    target_triangles,
+    sample_energies,
+    local_point_count,
+    triangle_area,
+):
+    source_band_count = occupied_triangles.shape[2]
+    target_band_count = target_triangles.shape[2]
+    energy_count = sample_energies.shape[0]
+    pair_count = source_band_count * target_band_count
+    local_weights = np.zeros(
+        (local_point_count, energy_count, target_band_count, source_band_count),
+        dtype=np.float64,
+    )
+
+    for pair_index in prange(pair_count):
+        source_band_index = pair_index // target_band_count
+        target_band_index = pair_index % target_band_count
+
+        parent_weights = np.empty((energy_count, 3), dtype=np.float64)
+        polygon_a = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
+        polygon_b = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
+        sorted_order = np.empty(3, dtype=np.int64)
+        sorted_delta = np.empty(3, dtype=np.float64)
+        sorted_weights = np.empty(3, dtype=np.float64)
+
+        for triangle_index in range(occupied_triangles.shape[0]):
+            occupied_vertices = occupied_triangles[triangle_index, :, source_band_index]
+            target_vertices = target_triangles[triangle_index, :, target_band_index]
+            _fermi_golden_rule_parent_weights_numba(
+                parent_weights,
+                occupied_vertices,
+                target_vertices,
+                sample_energies,
+                triangle_area,
+                polygon_a,
+                polygon_b,
+                sorted_order,
+                sorted_delta,
+                sorted_weights,
+            )
+            for energy_index in range(energy_count):
+                for vertex_index in range(3):
+                    local_weights[
+                        local_point_indices[triangle_index, vertex_index],
+                        energy_index,
+                        target_band_index,
+                        source_band_index,
+                    ] += parent_weights[energy_index, vertex_index]
+
+    return local_weights
+
+
 @njit(cache=True)
 def _complex_polarization_weights_on_local_mesh_numba(
     local_point_indices,
@@ -348,6 +453,62 @@ def _complex_polarization_weights_on_local_mesh_numba(
                             target_band_index,
                             source_band_index,
                         ] += parent_weights[energy_index, vertex_index]
+
+    return local_weights
+
+
+@njit(cache=True, parallel=True)
+def _complex_polarization_weights_on_local_mesh_pair_parallel_numba(
+    local_point_indices,
+    occupied_triangles,
+    target_triangles,
+    sample_energies,
+    local_point_count,
+    triangle_area,
+):
+    source_band_count = occupied_triangles.shape[2]
+    target_band_count = target_triangles.shape[2]
+    energy_count = sample_energies.shape[0]
+    pair_count = source_band_count * target_band_count
+    local_weights = np.zeros(
+        (local_point_count, energy_count, target_band_count, source_band_count),
+        dtype=np.complex128,
+    )
+
+    for pair_index in prange(pair_count):
+        source_band_index = pair_index // target_band_count
+        target_band_index = pair_index % target_band_count
+
+        parent_weights = np.empty((energy_count, 3), dtype=np.complex128)
+        polygon_a = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
+        polygon_b = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
+        sorted_order = np.empty(3, dtype=np.int64)
+        sorted_delta = np.empty(3, dtype=np.float64)
+        sorted_weights = np.empty(3, dtype=np.complex128)
+
+        for triangle_index in range(occupied_triangles.shape[0]):
+            occupied_vertices = occupied_triangles[triangle_index, :, source_band_index]
+            target_vertices = target_triangles[triangle_index, :, target_band_index]
+            _complex_polarization_parent_weights_numba(
+                parent_weights,
+                occupied_vertices,
+                target_vertices,
+                sample_energies,
+                triangle_area,
+                polygon_a,
+                polygon_b,
+                sorted_order,
+                sorted_delta,
+                sorted_weights,
+            )
+            for energy_index in range(energy_count):
+                for vertex_index in range(3):
+                    local_weights[
+                        local_point_indices[triangle_index, vertex_index],
+                        energy_index,
+                        target_band_index,
+                        source_band_index,
+                    ] += parent_weights[energy_index, vertex_index]
 
     return local_weights
 

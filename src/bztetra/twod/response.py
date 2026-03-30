@@ -13,13 +13,20 @@ from ._grids import interpolate_local_values
 from ._grids import interpolated_triangle_energies
 from ._grids import normalize_eigenvalues
 from ._response_kernels import _complex_polarization_weights_on_local_mesh_numba
+from ._response_kernels import _complex_polarization_weights_on_local_mesh_pair_parallel_numba
 from ._response_kernels import _fermi_golden_rule_weights_on_local_mesh_numba
+from ._response_kernels import _fermi_golden_rule_weights_on_local_mesh_pair_parallel_numba
 from ._response_kernels import _nesting_function_weights_on_local_mesh_numba
 from ._response_kernels import _phase_space_overlap_weights_on_local_mesh_numba
 from ._response_kernels import _static_polarization_weights_on_local_mesh_numba
+from ._response_kernels import _static_polarization_weights_on_local_mesh_pair_parallel_numba
 from .geometry import TriangleIntegrationMesh
 from .geometry import TriangleMethod
 from .geometry import cached_integration_mesh
+
+
+PAIR_PARALLEL_THRESHOLD = 16
+PAIR_PARALLEL_TARGET_THRESHOLD = 4
 
 
 @dataclass(slots=True)
@@ -290,6 +297,15 @@ def _static_polarization_weights_on_local_mesh(
     occupied_triangles: FloatArray,
     target_triangles: FloatArray,
 ) -> FloatArray:
+    pair_count = occupied_triangles.shape[2] * target_triangles.shape[2]
+    if pair_count >= PAIR_PARALLEL_THRESHOLD and target_triangles.shape[2] >= PAIR_PARALLEL_TARGET_THRESHOLD:
+        return _static_polarization_weights_on_local_mesh_pair_parallel_numba(
+            mesh.local_point_indices,
+            occupied_triangles,
+            target_triangles,
+            mesh.local_point_count,
+            _triangle_area(mesh),
+        )
     return _static_polarization_weights_on_local_mesh_numba(
         mesh.local_point_indices,
         occupied_triangles,
@@ -305,6 +321,16 @@ def _fermi_golden_rule_weights_on_local_mesh(
     target_triangles: FloatArray,
     sample_energies: FloatArray,
 ) -> FloatArray:
+    pair_count = occupied_triangles.shape[2] * target_triangles.shape[2]
+    if pair_count >= PAIR_PARALLEL_THRESHOLD and target_triangles.shape[2] >= PAIR_PARALLEL_TARGET_THRESHOLD:
+        return _fermi_golden_rule_weights_on_local_mesh_pair_parallel_numba(
+            mesh.local_point_indices,
+            occupied_triangles,
+            target_triangles,
+            sample_energies,
+            mesh.local_point_count,
+            _triangle_area(mesh),
+        )
     return _fermi_golden_rule_weights_on_local_mesh_numba(
         mesh.local_point_indices,
         occupied_triangles,
@@ -321,6 +347,16 @@ def _complex_polarization_weights_on_local_mesh(
     target_triangles: FloatArray,
     sample_energies: ComplexArray,
 ) -> ComplexArray:
+    pair_count = occupied_triangles.shape[2] * target_triangles.shape[2]
+    if pair_count >= PAIR_PARALLEL_THRESHOLD and target_triangles.shape[2] >= PAIR_PARALLEL_TARGET_THRESHOLD:
+        return _complex_polarization_weights_on_local_mesh_pair_parallel_numba(
+            mesh.local_point_indices,
+            occupied_triangles,
+            target_triangles,
+            sample_energies,
+            mesh.local_point_count,
+            _triangle_area(mesh),
+        )
     return _complex_polarization_weights_on_local_mesh_numba(
         mesh.local_point_indices,
         occupied_triangles,

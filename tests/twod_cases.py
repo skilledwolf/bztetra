@@ -91,3 +91,35 @@ def fermi_golden_rule_zero_case() -> tuple[np.ndarray, float, np.ndarray]:
     omega = 10.0
     expected = np.zeros(3, dtype=np.float64)
     return transfer_energies, omega, expected
+
+
+def synthetic_multiband_response_case(
+    grid_shape: tuple[int, int] = (8, 8),
+    *,
+    band_count: int = 4,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    reciprocal_vectors = np.diag([3.0, 3.0]).astype(np.float64)
+    occupied = np.empty((*grid_shape, band_count), dtype=np.float64)
+    target = np.empty((*grid_shape, band_count), dtype=np.float64)
+
+    nx, ny = grid_shape
+    for x_index in range(nx):
+        for y_index in range(ny):
+            kfrac = np.array(
+                [x_index / nx, y_index / ny],
+                dtype=np.float64,
+            ) - 0.5
+            kcart = reciprocal_vectors @ kfrac
+            base = 0.5 * np.dot(kcart, kcart) - 0.5
+            shifted = kcart.copy()
+            shifted[0] = shifted[0] + 0.85
+            shifted_base = 0.5 * np.dot(shifted, shifted) - 0.5
+            for band_index in range(band_count):
+                occupied[x_index, y_index, band_index] = base + 0.07 * band_index
+                target[x_index, y_index, band_index] = (
+                    shifted_base
+                    + 0.11 * band_index
+                    + 0.03 * (band_index + 1) * kcart[1]
+                )
+
+    return reciprocal_vectors, occupied, target

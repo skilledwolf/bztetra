@@ -136,8 +136,8 @@ def main() -> None:
 
 
 def _emit_profiles(tasks, profile_task: str, profile_limit: int) -> None:
-    profile_targets = {profile_task}
-    if profile_task == "all":
+    profile_targets = {item.strip() for item in profile_task.split(",") if item.strip()}
+    if "all" in profile_targets:
         profile_targets = {label for label, _ in tasks}
 
     print()
