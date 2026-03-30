@@ -18,7 +18,9 @@ from .geometry import cached_integration_mesh
 
 
 @dataclass(frozen=True, slots=True)
-class FermiSearchResult:
+class FermiEnergySolution:
+    """Result bundle for `solve_fermi_energy`."""
+
     fermi_energy: float
     weights: FloatArray
     iterations: int
@@ -32,6 +34,8 @@ def occupation_weights(
     method: int | TetraMethod = "optimized",
     fermi_energy: float = 0.0,
 ) -> FloatArray:
+    """Compute occupation weights on a k-grid. Replaces `libtetrabz_occ`."""
+
     eig_flat, energy_grid_shape = normalize_eigenvalues(eigenvalues)
     mesh = cached_integration_mesh(
         reciprocal_vectors,
@@ -45,24 +49,7 @@ def occupation_weights(
     return _unflatten_band_last(output_flat, mesh.weight_grid_shape)
 
 
-def occ(
-    reciprocal_vectors: npt.ArrayLike,
-    eigenvalues: npt.ArrayLike,
-    *,
-    weight_grid_shape: tuple[int, int, int] | None = None,
-    method: int | TetraMethod = "optimized",
-    fermi_energy: float = 0.0,
-) -> FloatArray:
-    return occupation_weights(
-        reciprocal_vectors,
-        eigenvalues,
-        weight_grid_shape=weight_grid_shape,
-        method=method,
-        fermi_energy=fermi_energy,
-    )
-
-
-def find_fermi_energy(
+def _find_fermi_energy(
     reciprocal_vectors: npt.ArrayLike,
     eigenvalues: npt.ArrayLike,
     electrons_per_spin: float,
@@ -71,7 +58,7 @@ def find_fermi_energy(
     method: int | TetraMethod = "optimized",
     tolerance: float = 1.0e-10,
     max_iterations: int = 300,
-) -> FermiSearchResult:
+) -> FermiEnergySolution:
     eig_flat, energy_grid_shape = normalize_eigenvalues(eigenvalues)
     mesh = cached_integration_mesh(
         reciprocal_vectors,
@@ -101,7 +88,7 @@ def find_fermi_energy(
         raise RuntimeError("fermi level search did not converge")
 
     output_flat = interpolate_local_values(mesh, local_weights)
-    return FermiSearchResult(
+    return FermiEnergySolution(
         fermi_energy=fermi_energy,
         weights=_unflatten_band_last(output_flat, mesh.weight_grid_shape),
         iterations=iteration,
@@ -117,8 +104,10 @@ def solve_fermi_energy(
     method: int | TetraMethod = "optimized",
     tolerance: float = 1.0e-10,
     max_iterations: int = 300,
-) -> FermiSearchResult:
-    return find_fermi_energy(
+) -> FermiEnergySolution:
+    """Solve for the Fermi energy and occupation weights. Replaces `libtetrabz_fermieng`."""
+
+    return _find_fermi_energy(
         reciprocal_vectors,
         eigenvalues,
         electrons_per_spin,
@@ -127,28 +116,6 @@ def solve_fermi_energy(
         tolerance=tolerance,
         max_iterations=max_iterations,
     )
-
-
-def fermieng(
-    reciprocal_vectors: npt.ArrayLike,
-    eigenvalues: npt.ArrayLike,
-    electrons_per_spin: float,
-    *,
-    weight_grid_shape: tuple[int, int, int] | None = None,
-    method: int | TetraMethod = "optimized",
-    tolerance: float = 1.0e-10,
-    max_iterations: int = 300,
-) -> tuple[float, FloatArray, int]:
-    result = find_fermi_energy(
-        reciprocal_vectors,
-        eigenvalues,
-        electrons_per_spin,
-        weight_grid_shape=weight_grid_shape,
-        method=method,
-        tolerance=tolerance,
-        max_iterations=max_iterations,
-    )
-    return result.fermi_energy, result.weights, result.iterations
 
 
 def _occupation_weights_on_local_mesh(

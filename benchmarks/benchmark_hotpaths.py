@@ -5,15 +5,15 @@ import time
 
 import numpy as np
 
-from tetrabz import dbldelta
-from tetrabz import dblstep
-from tetrabz import dos
-from tetrabz import fermigr
-from tetrabz import intdos
-from tetrabz import occ
-from tetrabz import polcmplx
-from tetrabz import polstat
-from tetrabz import prepare_response_problem
+from tetrabz import nesting_function_weights
+from tetrabz import phase_space_overlap_weights
+from tetrabz import density_of_states_weights
+from tetrabz import fermi_golden_rule_weights
+from tetrabz import integrated_density_of_states_weights
+from tetrabz import occupation_weights
+from tetrabz import complex_frequency_polarization_weights
+from tetrabz import static_polarization_weights
+from tetrabz import prepare_response_evaluator
 
 
 FERMI_ENERGY = 0.5
@@ -28,7 +28,7 @@ def main() -> None:
     reciprocal_vectors = np.diag([3.0, 3.0, 3.0]).astype(np.float64)
     scalar_bands = _free_electron_bands(reciprocal_vectors, grid_shape)
     response_occupied_bands, response_target_bands = _free_electron_response_bands(reciprocal_vectors, grid_shape)
-    prepared_response = prepare_response_problem(
+    prepared_response = prepare_response_evaluator(
         reciprocal_vectors,
         response_occupied_bands,
         response_target_bands,
@@ -39,8 +39,8 @@ def main() -> None:
 
     tasks = [
         (
-            "occ",
-            lambda: occ(
+            "occupation_weights",
+            lambda: occupation_weights(
                 reciprocal_vectors,
                 scalar_bands,
                 weight_grid_shape=grid_shape,
@@ -49,8 +49,8 @@ def main() -> None:
             ),
         ),
         (
-            "dos",
-            lambda: dos(
+            "density_of_states_weights",
+            lambda: density_of_states_weights(
                 reciprocal_vectors,
                 scalar_bands,
                 sample_energies,
@@ -59,8 +59,8 @@ def main() -> None:
             ),
         ),
         (
-            "intdos",
-            lambda: intdos(
+            "integrated_density_of_states_weights",
+            lambda: integrated_density_of_states_weights(
                 reciprocal_vectors,
                 scalar_bands,
                 sample_energies,
@@ -69,8 +69,8 @@ def main() -> None:
             ),
         ),
         (
-            "dblstep",
-            lambda: dblstep(
+            "phase_space_overlap_weights",
+            lambda: phase_space_overlap_weights(
                 reciprocal_vectors,
                 response_occupied_bands,
                 response_target_bands,
@@ -79,8 +79,8 @@ def main() -> None:
             ),
         ),
         (
-            "dbldelta",
-            lambda: dbldelta(
+            "nesting_function_weights",
+            lambda: nesting_function_weights(
                 reciprocal_vectors,
                 response_occupied_bands,
                 response_target_bands,
@@ -89,8 +89,8 @@ def main() -> None:
             ),
         ),
         (
-            "polstat",
-            lambda: polstat(
+            "static_polarization_weights",
+            lambda: static_polarization_weights(
                 reciprocal_vectors,
                 occupied_bands,
                 target_bands,
@@ -99,8 +99,8 @@ def main() -> None:
             ),
         ),
         (
-            "fermigr",
-            lambda: fermigr(
+            "fermi_golden_rule_weights",
+            lambda: fermi_golden_rule_weights(
                 reciprocal_vectors,
                 response_occupied_bands,
                 response_target_bands,
@@ -110,8 +110,8 @@ def main() -> None:
             ),
         ),
         (
-            "polcmplx",
-            lambda: polcmplx(
+            "complex_frequency_polarization_weights",
+            lambda: complex_frequency_polarization_weights(
                 reciprocal_vectors,
                 response_occupied_bands,
                 response_target_bands,
@@ -121,12 +121,12 @@ def main() -> None:
             ),
         ),
         (
-            "fermigr_prepared",
-            lambda: prepared_response.fermigr(sample_energies),
+            "fermi_golden_rule_weights_prepared",
+            lambda: prepared_response.fermi_golden_rule_weights(sample_energies),
         ),
         (
-            "polcmplx_prepared",
-            lambda: prepared_response.polcmplx(complex_sample_energies),
+            "complex_frequency_polarization_weights_prepared",
+            lambda: prepared_response.complex_frequency_polarization_weights(complex_sample_energies),
         ),
     ]
 

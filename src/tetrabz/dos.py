@@ -25,6 +25,8 @@ def density_of_states_weights(
     weight_grid_shape: tuple[int, int, int] | None = None,
     method: int | TetraMethod = "optimized",
 ) -> FloatArray:
+    """Compute density-of-states weights on an energy grid. Replaces `libtetrabz_dos`."""
+
     eig_flat, energy_grid_shape = normalize_eigenvalues(eigenvalues)
     sample_energies = normalize_energy_samples(energies)
     mesh = cached_integration_mesh(
@@ -39,23 +41,6 @@ def density_of_states_weights(
     return _unflatten_energy_band_last(output_flat, mesh.weight_grid_shape)
 
 
-def dos(
-    reciprocal_vectors: npt.ArrayLike,
-    eigenvalues: npt.ArrayLike,
-    energies: npt.ArrayLike,
-    *,
-    weight_grid_shape: tuple[int, int, int] | None = None,
-    method: int | TetraMethod = "optimized",
-) -> FloatArray:
-    return density_of_states_weights(
-        reciprocal_vectors,
-        eigenvalues,
-        energies,
-        weight_grid_shape=weight_grid_shape,
-        method=method,
-    )
-
-
 def integrated_density_of_states_weights(
     reciprocal_vectors: npt.ArrayLike,
     eigenvalues: npt.ArrayLike,
@@ -64,6 +49,8 @@ def integrated_density_of_states_weights(
     weight_grid_shape: tuple[int, int, int] | None = None,
     method: int | TetraMethod = "optimized",
 ) -> FloatArray:
+    """Compute integrated DOS weights on an energy grid. Replaces `libtetrabz_intdos`."""
+
     eig_flat, energy_grid_shape = normalize_eigenvalues(eigenvalues)
     sample_energies = normalize_energy_samples(energies)
     mesh = cached_integration_mesh(
@@ -76,23 +63,6 @@ def integrated_density_of_states_weights(
     local_weights = _intdos_weights_on_local_mesh(mesh, tetra_band_energies, sample_energies)
     output_flat = interpolate_local_values(mesh, local_weights)
     return _unflatten_energy_band_last(output_flat, mesh.weight_grid_shape)
-
-
-def intdos(
-    reciprocal_vectors: npt.ArrayLike,
-    eigenvalues: npt.ArrayLike,
-    energies: npt.ArrayLike,
-    *,
-    weight_grid_shape: tuple[int, int, int] | None = None,
-    method: int | TetraMethod = "optimized",
-) -> FloatArray:
-    return integrated_density_of_states_weights(
-        reciprocal_vectors,
-        eigenvalues,
-        energies,
-        weight_grid_shape=weight_grid_shape,
-        method=method,
-    )
 
 
 def _dos_weights_on_local_mesh(

@@ -5,7 +5,7 @@ import time
 
 import numpy as np
 
-from tetrabz import polstat
+from tetrabz import static_polarization_weights
 
 
 FERMI_ENERGY = 0.5
@@ -23,10 +23,10 @@ def main() -> None:
         tasks.append(
             (
                 f"lindhard q={q_value:.3f}",
-                lambda occ=occupied, tgt=target: polstat(
+                lambda occupied_bands=occupied, target_bands=target: static_polarization_weights(
                     reciprocal_vectors,
-                    occ,
-                    tgt,
+                    occupied_bands,
+                    target_bands,
                     weight_grid_shape=weight_grid_shape,
                     method=args.method,
                 ),
@@ -37,7 +37,7 @@ def main() -> None:
     tasks.append(
         (
             "multiband shifted",
-            lambda: polstat(
+            lambda: static_polarization_weights(
                 reciprocal_vectors,
                 occupied,
                 target,

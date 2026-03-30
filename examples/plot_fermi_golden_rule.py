@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
-from tetrabz import polcmplx
+from tetrabz import fermi_golden_rule_weights
 
 try:
     import matplotlib
@@ -16,10 +16,10 @@ except ImportError as exc:  # pragma: no cover - runtime dependency check
     raise SystemExit("matplotlib is required for this example. Install with `pip install -e '.[plot]'`.") from exc
 
 
-DEFAULT_OUTPUT = Path("build/review_plots/polcmplx_matsubara.png")
+DEFAULT_OUTPUT = Path("build/review_plots/fermi_golden_rule.png")
 GRID_SHAPE = (16, 16, 16)
-# Start above zero: the full tensor includes intraband channels with a pole at z = 0.
-MATSUBARA_FREQUENCIES = np.linspace(0.1, 2.5, 81, dtype=np.float64)
+ENERGY_SWEEP = np.linspace(0.1, 1.1, 41, dtype=np.float64)
+EXACT_ENERGIES = np.array([1.0 / 3.0, 2.0 / 3.0, 1.0], dtype=np.float64)
 FERMI_ENERGY = 0.5
 
 
@@ -28,23 +28,20 @@ def main() -> None:
 
     reciprocal_vectors, occupied, target = build_response_bands(GRID_SHAPE)
     metric = build_weight_metric(reciprocal_vectors, GRID_SHAPE)
-    sample_energies = 1j * MATSUBARA_FREQUENCIES
+    dense_curve = compute_weighted_curve(reciprocal_vectors, occupied, target, metric, ENERGY_SWEEP)
+    exact_points = exact_transition_rate_points()
 
-    weighted = compute_weighted_curve(reciprocal_vectors, occupied, target, metric, sample_energies)
-    exact_channels = exact_constant_gap_channels(sample_energies)
-
-    figure = build_figure(weighted, exact_channels)
+    figure = build_figure(dense_curve, exact_points)
 
     output_path = args.output.resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
     figure.savefig(output_path, dpi=180, bbox_inches="tight")
     plt.close(figure)
 
-    channel_01_error = np.max(np.abs(weighted[:, 1, 0] - exact_channels[:, 0]))
-    channel_11_error = np.max(np.abs(weighted[:, 1, 1] - exact_channels[:, 1]))
+    exact_curve = compute_weighted_curve(reciprocal_vectors, occupied, target, metric, EXACT_ENERGIES)
     print(f"Wrote plot to {output_path}")
-    print(f"Max |0 -> 1 channel - exact|: {channel_01_error:.6e}")
-    print(f"Max |1 -> 1 channel - exact|: {channel_11_error:.6e}")
+    print(f"Max |channel 0->0 - exact points|: {np.max(np.abs(exact_curve[:, 0, 0] - exact_points[:, 0, 0])):.6e}")
+    print(f"Max |channel 1->0 - exact points|: {np.max(np.abs(exact_curve[:, 0, 1] - exact_points[:, 0, 1])):.6e}")
 
 
 def compute_weighted_curve(
@@ -54,7 +51,7 @@ def compute_weighted_curve(
     metric: np.ndarray,
     energies: np.ndarray,
 ) -> np.ndarray:
-    weights = polcmplx(
+    weights = fermi_golden_rule_weights(
         reciprocal_vectors,
         occupied,
         target,
@@ -66,11 +63,24 @@ def compute_weighted_curve(
     return weighted * np.linalg.det(reciprocal_vectors)
 
 
-def exact_constant_gap_channels(energies: np.ndarray) -> np.ndarray:
-    samples = np.asarray(energies, dtype=np.complex128)
-    values = np.empty((samples.size, 2), dtype=np.complex128)
-    values[:, 0] = 8.0 * np.pi / (5.0 * (1.0 + 2.0 * samples))
-    values[:, 1] = np.sqrt(8.0) * np.pi / (5.0 * (1.0 + 4.0 * samples))
+def exact_transition_rate_points() -> np.ndarray:
+    values = np.zeros((EXACT_ENERGIES.size, 2, 2), dtype=np.float64)
+    values[:, 0, 0] = np.array(
+        [
+            4.0 * np.pi / 9.0,
+            1295.0 * np.pi / 2592.0,
+            15.0 * np.pi / 32.0,
+        ],
+        dtype=np.float64,
+    )
+    values[:, 0, 1] = np.array(
+        [
+            5183.0 * np.pi / 41472.0,
+            4559.0 * np.pi / 41472.0,
+            0.0,
+        ],
+        dtype=np.float64,
+    )
     return values
 
 
@@ -108,58 +118,33 @@ def build_weight_metric(reciprocal_vectors: np.ndarray, grid_shape: tuple[int, i
     return metric
 
 
-def build_figure(weighted_curve: np.ndarray, exact_channels: np.ndarray):
-    figure, axes = plt.subplots(1, 2, figsize=(12.0, 5.4), sharex=True)
+def build_figure(weighted_curve: np.ndarray, exact_points: np.ndarray):
+    figure, axis = plt.subplots(figsize=(10.0, 6.5))
 
-    channels = (
-        ("0 -> 1", weighted_curve[:, 1, 0], exact_channels[:, 0], "#0A9396"),
-        ("1 -> 1", weighted_curve[:, 1, 1], exact_channels[:, 1], "#AE2012"),
-    )
-    parts = (
-        ("Real Part", np.real, axes[0]),
-        ("Imaginary Part", np.imag, axes[1]),
-    )
+    axis.plot(ENERGY_SWEEP, weighted_curve[:, 0, 0], color="#0A9396", linewidth=2.6, label="Port 0 -> 0 (16^3)")
+    axis.plot(ENERGY_SWEEP, weighted_curve[:, 0, 1], color="#AE2012", linewidth=2.6, label="Port 1 -> 0 (16^3)")
+    axis.scatter(EXACT_ENERGIES, exact_points[:, 0, 0], color="#005F73", s=34, marker="o", label="Exact points 0 -> 0")
+    axis.scatter(EXACT_ENERGIES, exact_points[:, 0, 1], color="#9B2226", s=34, marker="s", label="Exact points 1 -> 0")
 
-    for title, projector, axis in parts:
-        for label, numerical, exact, color in channels:
-            axis.plot(
-                MATSUBARA_FREQUENCIES,
-                projector(numerical),
-                color=color,
-                linewidth=2.6,
-                label=f"Port {label}",
-            )
-            axis.plot(
-                MATSUBARA_FREQUENCIES,
-                projector(exact),
-                color=color,
-                linewidth=1.4,
-                linestyle="--",
-                label=f"Exact {label}",
-            )
-
-        axis.grid(alpha=0.2)
-        axis.set_title(title)
-        axis.set_xlabel(r"Matsubara frequency $\omega_n$")
-
-    axes[0].set_ylabel(r"Integrated polarization weight")
-    axes[0].legend(loc="upper right", fontsize=9)
-    axes[1].legend(loc="lower left", fontsize=9)
-
-    figure.suptitle(r"Free-Electron Complex Polarization on the Imaginary-Frequency Axis")
-    axes[0].annotate(
-        "constant-gap interband channels\ndecay as $1 / (\\Delta + i\\omega_n)$",
-        xy=(0.75, np.real(exact_channels[24, 0])),
-        xytext=(1.15, 2.4),
+    axis.axvline(1.0, color="#777777", linewidth=1.0, linestyle=":")
+    axis.grid(alpha=0.2)
+    axis.set_title(r"Free-Electron Fermi-Golden-Rule Weights With $k^2$ Matrix Element")
+    axis.set_xlabel(r"Energy transfer $\omega$")
+    axis.set_ylabel(r"Integrated weight")
+    axis.legend(loc="upper right", fontsize=9)
+    axis.annotate(
+        "upper threshold in the toy model",
+        xy=(1.0, exact_points[-1, 0, 0]),
+        xytext=(0.72, 1.26),
         arrowprops={"arrowstyle": "->", "color": "#555555"},
         color="#555555",
     )
-    axes[1].annotate(
-        "causal response stays smooth\non the Matsubara axis",
-        xy=(1.0, np.imag(exact_channels[32, 1])),
-        xytext=(1.45, -0.65),
-        arrowprops={"arrowstyle": "->", "color": "#555555"},
-        color="#555555",
+    axis.annotate(
+        "only the target band 0 channels stay active",
+        xy=(0.62, weighted_curve[20, 0, 1]),
+        xytext=(0.22, 0.56),
+        arrowprops={"arrowstyle": "->", "color": "#9B2226"},
+        color="#9B2226",
     )
 
     return figure
@@ -178,7 +163,7 @@ def _centered_fractional_kpoint(
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Plot the free-electron complex polarization review figure on the Matsubara axis."
+        description="Plot the free-electron Fermi-golden-rule review figure for the current transition-weight kernel."
     )
     parser.add_argument(
         "--output",

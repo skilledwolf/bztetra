@@ -5,8 +5,8 @@ from pathlib import Path
 
 import numpy as np
 
-from tetrabz import dos
-from tetrabz import polstat
+from tetrabz import density_of_states_weights
+from tetrabz import static_polarization_weights
 
 try:
     import matplotlib
@@ -61,7 +61,7 @@ def compute_lindhard_curve(grid_shape: tuple[int, int, int], method: str) -> np.
     for index, q_value in enumerate(Q_VALUES):
         reciprocal_vectors, eig1, eig2 = build_lindhard_bands(grid_shape, q_value)
         if index == 0:
-            weights = dos(
+            weights = density_of_states_weights(
                 reciprocal_vectors,
                 eig1,
                 np.array([0.0], dtype=np.float64),
@@ -70,7 +70,7 @@ def compute_lindhard_curve(grid_shape: tuple[int, int, int], method: str) -> np.
             )
             values[index] = weights.sum() * np.linalg.det(reciprocal_vectors) / (4.0 * np.pi)
         else:
-            weights = polstat(
+            weights = static_polarization_weights(
                 reciprocal_vectors,
                 eig1,
                 eig2,

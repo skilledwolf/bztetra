@@ -1,15 +1,15 @@
 import numpy as np
 
-from tetrabz import PreparedResponseProblem
-from tetrabz import dbldelta
-from tetrabz import dblstep
-from tetrabz import fermigr
-from tetrabz import polcmplx
-from tetrabz import polstat
-from tetrabz import prepare_response_problem
-from tests.legacy_cases import fermigr_energy_points
+from tetrabz import PreparedResponseEvaluator
+from tetrabz import nesting_function_weights
+from tetrabz import phase_space_overlap_weights
+from tetrabz import fermi_golden_rule_weights
+from tetrabz import complex_frequency_polarization_weights
+from tetrabz import static_polarization_weights
+from tetrabz import prepare_response_evaluator
+from tests.legacy_cases import fermi_golden_rule_energy_points
 from tests.legacy_cases import legacy_free_electron_response_case
-from tests.legacy_cases import polcmplx_energy_points
+from tests.legacy_cases import complex_frequency_polarization_energy_points
 
 
 def _synthetic_multiband_response_case(
@@ -45,7 +45,7 @@ def _synthetic_multiband_response_case(
 def test_prepare_response_problem_returns_public_type() -> None:
     bvec, eigenvalues_1, eigenvalues_2, _ = legacy_free_electron_response_case((8, 8, 8), (8, 8, 8))
 
-    problem = prepare_response_problem(
+    problem = prepare_response_evaluator(
         bvec,
         eigenvalues_1 - 0.5,
         eigenvalues_2 - 0.5,
@@ -53,13 +53,13 @@ def test_prepare_response_problem_returns_public_type() -> None:
         method="optimized",
     )
 
-    assert isinstance(problem, PreparedResponseProblem)
+    assert isinstance(problem, PreparedResponseEvaluator)
 
 
 def test_prepared_response_problem_matches_static_response_kernels() -> None:
     bvec, eigenvalues_1, eigenvalues_2, _ = legacy_free_electron_response_case((8, 8, 8), (8, 8, 8))
 
-    problem = prepare_response_problem(
+    problem = prepare_response_evaluator(
         bvec,
         eigenvalues_1 - 0.5,
         eigenvalues_2 - 0.5,
@@ -67,15 +67,15 @@ def test_prepared_response_problem_matches_static_response_kernels() -> None:
         method="optimized",
     )
 
-    np.testing.assert_allclose(problem.dblstep(), dblstep(bvec, eigenvalues_1 - 0.5, eigenvalues_2 - 0.5, weight_grid_shape=(8, 8, 8), method="optimized"))
-    np.testing.assert_allclose(problem.dbldelta(), dbldelta(bvec, eigenvalues_1 - 0.5, eigenvalues_2 - 0.5, weight_grid_shape=(8, 8, 8), method="optimized"))
-    np.testing.assert_allclose(problem.polstat(), polstat(bvec, eigenvalues_1 - 0.5, eigenvalues_2 - 0.5, weight_grid_shape=(8, 8, 8), method="optimized"))
+    np.testing.assert_allclose(problem.phase_space_overlap_weights(), phase_space_overlap_weights(bvec, eigenvalues_1 - 0.5, eigenvalues_2 - 0.5, weight_grid_shape=(8, 8, 8), method="optimized"))
+    np.testing.assert_allclose(problem.nesting_function_weights(), nesting_function_weights(bvec, eigenvalues_1 - 0.5, eigenvalues_2 - 0.5, weight_grid_shape=(8, 8, 8), method="optimized"))
+    np.testing.assert_allclose(problem.static_polarization_weights(), static_polarization_weights(bvec, eigenvalues_1 - 0.5, eigenvalues_2 - 0.5, weight_grid_shape=(8, 8, 8), method="optimized"))
 
 
 def test_prepared_response_problem_matches_frequency_response_kernels() -> None:
     bvec, eigenvalues_1, eigenvalues_2, _ = legacy_free_electron_response_case((8, 8, 8), (8, 8, 8))
 
-    problem = prepare_response_problem(
+    problem = prepare_response_evaluator(
         bvec,
         eigenvalues_1 - 0.5,
         eigenvalues_2 - 0.5,
@@ -84,12 +84,12 @@ def test_prepared_response_problem_matches_frequency_response_kernels() -> None:
     )
 
     np.testing.assert_allclose(
-        problem.fermigr(fermigr_energy_points()),
-        fermigr(
+        problem.fermi_golden_rule_weights(fermi_golden_rule_energy_points()),
+        fermi_golden_rule_weights(
             bvec,
             eigenvalues_1 - 0.5,
             eigenvalues_2 - 0.5,
-            fermigr_energy_points(),
+            fermi_golden_rule_energy_points(),
             weight_grid_shape=(8, 8, 8),
             method="optimized",
         ),
@@ -99,7 +99,7 @@ def test_prepared_response_problem_matches_frequency_response_kernels() -> None:
 def test_prepared_response_problem_matches_interpolated_frequency_kernels() -> None:
     bvec, eigenvalues_1, eigenvalues_2, _ = legacy_free_electron_response_case((16, 16, 16), (8, 8, 8))
 
-    problem = prepare_response_problem(
+    problem = prepare_response_evaluator(
         bvec,
         eigenvalues_1 - 0.5,
         eigenvalues_2 - 0.5,
@@ -108,23 +108,23 @@ def test_prepared_response_problem_matches_interpolated_frequency_kernels() -> N
     )
 
     np.testing.assert_allclose(
-        problem.fermigr(fermigr_energy_points()),
-        fermigr(
+        problem.fermi_golden_rule_weights(fermi_golden_rule_energy_points()),
+        fermi_golden_rule_weights(
             bvec,
             eigenvalues_1 - 0.5,
             eigenvalues_2 - 0.5,
-            fermigr_energy_points(),
+            fermi_golden_rule_energy_points(),
             weight_grid_shape=(8, 8, 8),
             method="optimized",
         ),
     )
     np.testing.assert_allclose(
-        problem.polcmplx(polcmplx_energy_points()),
-        polcmplx(
+        problem.complex_frequency_polarization_weights(complex_frequency_polarization_energy_points()),
+        complex_frequency_polarization_weights(
             bvec,
             eigenvalues_1 - 0.5,
             eigenvalues_2 - 0.5,
-            polcmplx_energy_points(),
+            complex_frequency_polarization_energy_points(),
             weight_grid_shape=(8, 8, 8),
             method="optimized",
         ),
@@ -134,7 +134,7 @@ def test_prepared_response_problem_matches_interpolated_frequency_kernels() -> N
 def test_prepared_response_problem_matches_multiband_frequency_response_kernels() -> None:
     bvec, occupied, target = _synthetic_multiband_response_case((4, 4, 4), 5)
 
-    problem = prepare_response_problem(
+    problem = prepare_response_evaluator(
         bvec,
         occupied,
         target,
@@ -146,8 +146,8 @@ def test_prepared_response_problem_matches_multiband_frequency_response_kernels(
     complex_energies = 1j * np.linspace(0.1, 1.5, 8, dtype=np.float64)
 
     np.testing.assert_allclose(
-        problem.fermigr(real_energies),
-        fermigr(
+        problem.fermi_golden_rule_weights(real_energies),
+        fermi_golden_rule_weights(
             bvec,
             occupied,
             target,
@@ -157,8 +157,8 @@ def test_prepared_response_problem_matches_multiband_frequency_response_kernels(
         ),
     )
     np.testing.assert_allclose(
-        problem.polcmplx(complex_energies),
-        polcmplx(
+        problem.complex_frequency_polarization_weights(complex_energies),
+        complex_frequency_polarization_weights(
             bvec,
             occupied,
             target,

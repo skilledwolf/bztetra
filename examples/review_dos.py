@@ -4,8 +4,8 @@ import math
 
 import numpy as np
 
-from tetrabz import dos
-from tetrabz import intdos
+from tetrabz import density_of_states_weights
+from tetrabz import integrated_density_of_states_weights
 
 
 def main() -> None:
@@ -15,8 +15,8 @@ def main() -> None:
     eigenvalues, metric = _legacy_free_electron_case((8, 8, 8))
     sample_energies = 0.5 * np.square(np.array([0.2, 0.4, 0.6, 0.8, 1.0], dtype=np.float64))
 
-    dos_weights = dos(bvec, eigenvalues, sample_energies, weight_grid_shape=(8, 8, 8), method="optimized")
-    intdos_weights = intdos(bvec, eigenvalues, sample_energies, weight_grid_shape=(8, 8, 8), method="optimized")
+    dos_weights = density_of_states_weights(bvec, eigenvalues, sample_energies, weight_grid_shape=(8, 8, 8), method="optimized")
+    intdos_weights = integrated_density_of_states_weights(bvec, eigenvalues, sample_energies, weight_grid_shape=(8, 8, 8), method="optimized")
 
     dos_moments = (dos_weights * metric[None, ..., None]).sum(axis=(1, 2, 3)) * np.linalg.det(bvec)
     intdos_moments = (intdos_weights * metric[None, ..., None]).sum(axis=(1, 2, 3)) * np.linalg.det(bvec)

@@ -12,17 +12,21 @@ The implementation strategy is:
 
 - NumPy for array orchestration and test/reference helpers.
 - Numba for hot scalar and tensor kernels once the numerical contracts are
-  locked down. The occupation, DOS, integrated-DOS, `dblstep`, `dbldelta`,
-  `polstat`, `fermigr`, and `polcmplx` paths are now compiled.
+  locked down. The `occupation_weights`,
+  `density_of_states_weights`, `integrated_density_of_states_weights`,
+  `phase_space_overlap_weights`, `nesting_function_weights`,
+  `static_polarization_weights`, `fermi_golden_rule_weights`, and
+  `complex_frequency_polarization_weights` paths are now compiled.
 - Shared setup is also optimized now: direct repeated calls reuse cached mesh
   geometry internally, and tetrahedron interpolation is compiled instead of
   running in Python loops.
 - Multiband dynamic-response kernels now parallelize over the band axes, with
   larger pair-count workloads using a higher-parallelism band-pair path for
-  `fermigr` and `polcmplx`.
-- A prepared response API for repeated sweeps on fixed bands, so
-  `fermigr`/`polcmplx` users can reuse mesh and tetrahedron setup instead of
-  rebuilding it for every energy grid.
+  `fermi_golden_rule_weights` and
+  `complex_frequency_polarization_weights`.
+- A prepared response evaluator for repeated sweeps on fixed bands, so
+  real- and complex-frequency response users can reuse mesh and tetrahedron
+  setup instead of rebuilding it for every energy grid.
 - SciPy only where it materially helps validation, reference calculations, or
   tooling; it is not a planned dependency for the core runtime path right now.
 
@@ -72,7 +76,7 @@ free-electron Fermi-golden-rule toy model with the legacy `k^2` matrix element
 and write a figure under `build/review_plots/`:
 
 ```bash
-.venv/bin/python examples/plot_fermigr.py
+.venv/bin/python examples/plot_fermi_golden_rule.py
 ```
 
 For a physically meaningful complex-frequency review plot, reproduce the
@@ -80,15 +84,16 @@ free-electron interband polarization on the positive Matsubara axis with exact
 comparison channels and write a figure under `build/review_plots/`:
 
 ```bash
-.venv/bin/python examples/plot_polcmplx.py
+.venv/bin/python examples/plot_complex_frequency_polarization.py
 ```
 
 For a physically meaningful phase-space review plot, compare the free-
-electron `dblstep` and `dbldelta` sweeps against their exact overlap / nesting
-curves and write a two-panel figure under `build/review_plots/`:
+electron phase-space-overlap and nesting-function sweeps against their exact
+overlap / nesting curves and write a two-panel figure under
+`build/review_plots/`:
 
 ```bash
-.venv/bin/python examples/plot_dblstep_dbldelta.py
+.venv/bin/python examples/plot_phase_space_and_nesting.py
 ```
 
 For a numeric DOS / integrated-DOS review that compares the current 8x8
@@ -98,9 +103,12 @@ free-electron fixture against the analytic continuum target, run:
 .venv/bin/python examples/review_dos.py
 ```
 
-For a quick local timing baseline on the current hot paths (`occ`, `dos`,
-`intdos`, `dblstep`, `dbldelta`, `polstat`, `fermigr`, `polcmplx`, and their
-prepared-response counterparts), run:
+For a quick local timing baseline on the current hot paths
+(`occupation_weights`, `density_of_states_weights`,
+`integrated_density_of_states_weights`, `phase_space_overlap_weights`,
+`nesting_function_weights`, `static_polarization_weights`,
+`fermi_golden_rule_weights`, `complex_frequency_polarization_weights`, and
+their prepared-response counterparts), run:
 
 ```bash
 PYTHONPATH=src .venv/bin/python benchmarks/benchmark_hotpaths.py
@@ -112,23 +120,23 @@ reuse the mesh cache internally, but this API also skips repeated tetrahedron
 interpolation:
 
 ```python
-from tetrabz import prepare_response_problem
+from tetrabz import prepare_response_evaluator
 
-response = prepare_response_problem(bvec, occupied_bands, target_bands, weight_grid_shape=(16, 16, 16))
-weights_real = response.fermigr(sample_energies)
-weights_complex = response.polcmplx(1j * matsubara_frequencies)
+response = prepare_response_evaluator(bvec, occupied_bands, target_bands, weight_grid_shape=(16, 16, 16))
+weights_real = response.fermi_golden_rule_weights(sample_energies)
+weights_complex = response.complex_frequency_polarization_weights(1j * matsubara_frequencies)
 ```
 
-For a more focused `polstat` timing sweep that isolates the multiband free-
+For a more focused static-polarization timing sweep that isolates the multiband free-
 electron case, the Lindhard small-`q` / `2k_F` branches, and the interpolation
 path, run:
 
 ```bash
-PYTHONPATH=src .venv/bin/python benchmarks/benchmark_polstat.py --grid 16 --weight-grid 8 --q-values 0.125,2.0
+PYTHONPATH=src .venv/bin/python benchmarks/benchmark_static_polarization.py --grid 16 --weight-grid 8 --q-values 0.125,2.0
 ```
 
 For a focused multiband frequency-response benchmark that compares direct and
-prepared `fermigr` / `polcmplx` sweeps, run:
+prepared real- and complex-frequency polarization sweeps, run:
 
 ```bash
 PYTHONPATH=src .venv/bin/python benchmarks/benchmark_response_multiband.py --grid 16 --bands 6 --energy-count 16
@@ -146,3 +154,7 @@ Then run:
 ```bash
 PYTHONPATH=src .venv/bin/python benchmarks/benchmark_compare_libtetrabz.py --grid 8 --repeats 3
 ```
+
+The public API now uses one descriptive name per routine. Each public
+function docstring names the corresponding legacy `libtetrabz_*` routine it
+replaces.

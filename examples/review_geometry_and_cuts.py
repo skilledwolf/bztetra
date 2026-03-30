@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 
 from tetrabz import build_integration_mesh
-from tetrabz import fermieng
+from tetrabz import solve_fermi_energy
 from tetrabz import occupation_weights
 from tetrabz import small_tetrahedron_cut
 from tetrabz import triangle_cut
@@ -49,14 +49,14 @@ def main() -> None:
     print("  weighted band integrals:")
     print(occupation_integrals)
     electrons_per_spin = (4.0 * np.pi / 3.0 + np.sqrt(2.0) * np.pi / 3.0) / vbz
-    fermi_energy, _, iterations = fermieng(
+    result = solve_fermi_energy(
         reciprocal_vectors,
         eigenvalues,
         electrons_per_spin,
         method="optimized",
     )
-    print("  fermieng result:")
-    print(f"    fermi_energy={fermi_energy:.6f}, iterations={iterations}")
+    print("  solve_fermi_energy result:")
+    print(f"    fermi_energy={result.fermi_energy:.6f}, iterations={result.iterations}")
 
 def _toy_case(grid_shape: tuple[int, int, int], reciprocal_vectors: np.ndarray) -> tuple[np.ndarray, np.ndarray, float]:
     eigenvalues = np.empty((*grid_shape, 2), dtype=np.float64)

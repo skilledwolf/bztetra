@@ -28,38 +28,37 @@ ComplexArray = npt.NDArray[np.complex128]
 
 
 @dataclass(slots=True)
-class PreparedResponseProblem:
-    """Reusable response setup for repeated evaluations on a fixed band pair."""
+class PreparedResponseEvaluator:
+    """Reusable response setup for repeated evaluations on a fixed source/target band set."""
 
     mesh: IntegrationMesh
     occupied_tetra: FloatArray
     target_tetra: FloatArray
 
-    def double_step_weights(self) -> FloatArray:
+    def phase_space_overlap_weights(self) -> FloatArray:
+        """Evaluate the double-step phase-space overlap. Replaces `libtetrabz_dblstep`."""
+
         local_weights = _double_step_weights_on_local_mesh(self.mesh, self.occupied_tetra, self.target_tetra)
         output_flat = interpolate_local_values(self.mesh, local_weights)
         return _unflatten_pair_band_last(output_flat, self.mesh.weight_grid_shape)
 
-    def dblstep(self) -> FloatArray:
-        return self.double_step_weights()
+    def nesting_function_weights(self) -> FloatArray:
+        """Evaluate the double-delta nesting weights. Replaces `libtetrabz_dbldelta`."""
 
-    def double_delta_weights(self) -> FloatArray:
         local_weights = _double_delta_weights_on_local_mesh(self.mesh, self.occupied_tetra, self.target_tetra)
         output_flat = interpolate_local_values(self.mesh, local_weights)
         return _unflatten_pair_band_last(output_flat, self.mesh.weight_grid_shape)
 
-    def dbldelta(self) -> FloatArray:
-        return self.double_delta_weights()
-
     def static_polarization_weights(self) -> FloatArray:
+        """Evaluate the static polarization weights. Replaces `libtetrabz_polstat`."""
+
         local_weights = _static_polarization_weights_on_local_mesh(self.mesh, self.occupied_tetra, self.target_tetra)
         output_flat = interpolate_local_values(self.mesh, local_weights)
         return _unflatten_pair_band_last(output_flat, self.mesh.weight_grid_shape)
 
-    def polstat(self) -> FloatArray:
-        return self.static_polarization_weights()
-
     def fermi_golden_rule_weights(self, energies: npt.ArrayLike) -> FloatArray:
+        """Evaluate real-frequency transition weights. Replaces `libtetrabz_fermigr`."""
+
         sample_energies = normalize_energy_samples(energies)
         local_weights = _fermi_golden_rule_weights_on_local_mesh(
             self.mesh,
@@ -70,10 +69,9 @@ class PreparedResponseProblem:
         output_flat = interpolate_local_values(self.mesh, local_weights)
         return _unflatten_energy_pair_band_last(output_flat, self.mesh.weight_grid_shape)
 
-    def fermigr(self, energies: npt.ArrayLike) -> FloatArray:
-        return self.fermi_golden_rule_weights(energies)
+    def complex_frequency_polarization_weights(self, energies: npt.ArrayLike) -> ComplexArray:
+        """Evaluate the complex-frequency polarization weights. Replaces `libtetrabz_polcmplx`."""
 
-    def complex_polarization_weights(self, energies: npt.ArrayLike) -> ComplexArray:
         sample_energies = normalize_complex_energy_samples(energies)
         local_weights = _complex_polarization_weights_on_local_mesh(
             self.mesh,
@@ -84,19 +82,17 @@ class PreparedResponseProblem:
         output_flat = interpolate_local_values(self.mesh, local_weights)
         return _unflatten_energy_pair_band_last(output_flat, self.mesh.weight_grid_shape)
 
-    def polcmplx(self, energies: npt.ArrayLike) -> ComplexArray:
-        return self.complex_polarization_weights(energies)
 
-
-def prepare_response_problem(
+def prepare_response_evaluator(
     reciprocal_vectors: npt.ArrayLike,
     occupied_eigenvalues: npt.ArrayLike,
     target_eigenvalues: npt.ArrayLike,
     *,
     weight_grid_shape: tuple[int, int, int] | None = None,
     method: int | TetraMethod = "optimized",
-) -> PreparedResponseProblem:
-    """Precompute shared response setup for repeated sweeps on a fixed band pair."""
+) -> PreparedResponseEvaluator:
+    """Prepare reusable response state for repeated source/target sweeps."""
+
     occupied_flat, target_flat, energy_grid_shape = _normalize_eigenvalue_pair(occupied_eigenvalues, target_eigenvalues)
     mesh = cached_integration_mesh(
         reciprocal_vectors,
@@ -106,10 +102,10 @@ def prepare_response_problem(
     )
     occupied_tetra = interpolated_tetrahedron_energies(mesh, occupied_flat)
     target_tetra = interpolated_tetrahedron_energies(mesh, target_flat)
-    return PreparedResponseProblem(mesh=mesh, occupied_tetra=occupied_tetra, target_tetra=target_tetra)
+    return PreparedResponseEvaluator(mesh=mesh, occupied_tetra=occupied_tetra, target_tetra=target_tetra)
 
 
-def double_step_weights(
+def phase_space_overlap_weights(
     reciprocal_vectors: npt.ArrayLike,
     occupied_eigenvalues: npt.ArrayLike,
     target_eigenvalues: npt.ArrayLike,
@@ -117,34 +113,19 @@ def double_step_weights(
     weight_grid_shape: tuple[int, int, int] | None = None,
     method: int | TetraMethod = "optimized",
 ) -> FloatArray:
-    problem = prepare_response_problem(
+    """Evaluate the double-step phase-space overlap. Replaces `libtetrabz_dblstep`."""
+
+    evaluator = prepare_response_evaluator(
         reciprocal_vectors,
         occupied_eigenvalues,
         target_eigenvalues,
         weight_grid_shape=weight_grid_shape,
         method=method,
     )
-    return problem.double_step_weights()
+    return evaluator.phase_space_overlap_weights()
 
 
-def dblstep(
-    reciprocal_vectors: npt.ArrayLike,
-    occupied_eigenvalues: npt.ArrayLike,
-    target_eigenvalues: npt.ArrayLike,
-    *,
-    weight_grid_shape: tuple[int, int, int] | None = None,
-    method: int | TetraMethod = "optimized",
-) -> FloatArray:
-    return double_step_weights(
-        reciprocal_vectors,
-        occupied_eigenvalues,
-        target_eigenvalues,
-        weight_grid_shape=weight_grid_shape,
-        method=method,
-    )
-
-
-def double_delta_weights(
+def nesting_function_weights(
     reciprocal_vectors: npt.ArrayLike,
     source_eigenvalues: npt.ArrayLike,
     target_eigenvalues: npt.ArrayLike,
@@ -152,31 +133,16 @@ def double_delta_weights(
     weight_grid_shape: tuple[int, int, int] | None = None,
     method: int | TetraMethod = "optimized",
 ) -> FloatArray:
-    problem = prepare_response_problem(
+    """Evaluate the double-delta nesting function. Replaces `libtetrabz_dbldelta`."""
+
+    evaluator = prepare_response_evaluator(
         reciprocal_vectors,
         source_eigenvalues,
         target_eigenvalues,
         weight_grid_shape=weight_grid_shape,
         method=method,
     )
-    return problem.double_delta_weights()
-
-
-def dbldelta(
-    reciprocal_vectors: npt.ArrayLike,
-    source_eigenvalues: npt.ArrayLike,
-    target_eigenvalues: npt.ArrayLike,
-    *,
-    weight_grid_shape: tuple[int, int, int] | None = None,
-    method: int | TetraMethod = "optimized",
-) -> FloatArray:
-    return double_delta_weights(
-        reciprocal_vectors,
-        source_eigenvalues,
-        target_eigenvalues,
-        weight_grid_shape=weight_grid_shape,
-        method=method,
-    )
+    return evaluator.nesting_function_weights()
 
 
 def fermi_golden_rule_weights(
@@ -188,36 +154,19 @@ def fermi_golden_rule_weights(
     weight_grid_shape: tuple[int, int, int] | None = None,
     method: int | TetraMethod = "optimized",
 ) -> FloatArray:
-    problem = prepare_response_problem(
+    """Evaluate real-frequency transition weights. Replaces `libtetrabz_fermigr`."""
+
+    evaluator = prepare_response_evaluator(
         reciprocal_vectors,
         occupied_eigenvalues,
         target_eigenvalues,
         weight_grid_shape=weight_grid_shape,
         method=method,
     )
-    return problem.fermi_golden_rule_weights(energies)
+    return evaluator.fermi_golden_rule_weights(energies)
 
 
-def fermigr(
-    reciprocal_vectors: npt.ArrayLike,
-    occupied_eigenvalues: npt.ArrayLike,
-    target_eigenvalues: npt.ArrayLike,
-    energies: npt.ArrayLike,
-    *,
-    weight_grid_shape: tuple[int, int, int] | None = None,
-    method: int | TetraMethod = "optimized",
-) -> FloatArray:
-    return fermi_golden_rule_weights(
-        reciprocal_vectors,
-        occupied_eigenvalues,
-        target_eigenvalues,
-        energies,
-        weight_grid_shape=weight_grid_shape,
-        method=method,
-    )
-
-
-def complex_polarization_weights(
+def complex_frequency_polarization_weights(
     reciprocal_vectors: npt.ArrayLike,
     occupied_eigenvalues: npt.ArrayLike,
     target_eigenvalues: npt.ArrayLike,
@@ -226,33 +175,16 @@ def complex_polarization_weights(
     weight_grid_shape: tuple[int, int, int] | None = None,
     method: int | TetraMethod = "optimized",
 ) -> ComplexArray:
-    problem = prepare_response_problem(
+    """Evaluate the complex-frequency polarization function. Replaces `libtetrabz_polcmplx`."""
+
+    evaluator = prepare_response_evaluator(
         reciprocal_vectors,
         occupied_eigenvalues,
         target_eigenvalues,
         weight_grid_shape=weight_grid_shape,
         method=method,
     )
-    return problem.complex_polarization_weights(energies)
-
-
-def polcmplx(
-    reciprocal_vectors: npt.ArrayLike,
-    occupied_eigenvalues: npt.ArrayLike,
-    target_eigenvalues: npt.ArrayLike,
-    energies: npt.ArrayLike,
-    *,
-    weight_grid_shape: tuple[int, int, int] | None = None,
-    method: int | TetraMethod = "optimized",
-) -> ComplexArray:
-    return complex_polarization_weights(
-        reciprocal_vectors,
-        occupied_eigenvalues,
-        target_eigenvalues,
-        energies,
-        weight_grid_shape=weight_grid_shape,
-        method=method,
-    )
+    return evaluator.complex_frequency_polarization_weights(energies)
 
 
 def static_polarization_weights(
@@ -263,31 +195,16 @@ def static_polarization_weights(
     weight_grid_shape: tuple[int, int, int] | None = None,
     method: int | TetraMethod = "optimized",
 ) -> FloatArray:
-    problem = prepare_response_problem(
+    """Evaluate the static polarization function. Replaces `libtetrabz_polstat`."""
+
+    evaluator = prepare_response_evaluator(
         reciprocal_vectors,
         occupied_eigenvalues,
         target_eigenvalues,
         weight_grid_shape=weight_grid_shape,
         method=method,
     )
-    return problem.static_polarization_weights()
-
-
-def polstat(
-    reciprocal_vectors: npt.ArrayLike,
-    occupied_eigenvalues: npt.ArrayLike,
-    target_eigenvalues: npt.ArrayLike,
-    *,
-    weight_grid_shape: tuple[int, int, int] | None = None,
-    method: int | TetraMethod = "optimized",
-) -> FloatArray:
-    return static_polarization_weights(
-        reciprocal_vectors,
-        occupied_eigenvalues,
-        target_eigenvalues,
-        weight_grid_shape=weight_grid_shape,
-        method=method,
-    )
+    return evaluator.static_polarization_weights()
 
 
 def _double_step_weights_on_local_mesh(
@@ -475,7 +392,7 @@ def _double_delta_secondary_weights(triangle_vertices: FloatArray) -> FloatArray
     for target_band_index in range(target_band_count):
         energies = triangle_vertices[:, target_band_index]
         if float(np.max(np.abs(energies))) < 1.0e-10:
-            raise RuntimeError("encountered nesting condition in dbldelta")
+            raise RuntimeError("encountered nesting condition in nesting_function_weights")
 
         sorted_order = np.argsort(energies)
         sorted_energies = _normalize_sorted_triangle_energies(energies[sorted_order])
@@ -565,7 +482,7 @@ def _polstat_logarithmic_weights(energy_differences: FloatArray) -> FloatArray:
     for index in range(4):
         if sorted_differences[index] < absolute_floor:
             if index == 2:
-                raise RuntimeError("encountered nesting condition in polstat")
+                raise RuntimeError("encountered nesting condition in static_polarization_weights")
             logarithms[index] = 0.0
             sorted_differences[index] = 0.0
         else:
@@ -775,7 +692,7 @@ def _polstat_1211(g1: float, g2: float, log1: float, log2: float) -> float:
 
 def _check_polstat_weights(weights: FloatArray, label: str) -> None:
     if np.any(weights < 0.0):
-        raise RuntimeError(f"negative polstat weights encountered in {label}")
+        raise RuntimeError(f"negative static_polarization_weights values encountered in {label}")
 
 
 @njit(cache=True)
@@ -1298,7 +1215,7 @@ def _double_delta_secondary_weights_numba(
             if value > max_abs_energy:
                 max_abs_energy = value
         if max_abs_energy < 1.0e-10:
-            raise RuntimeError("encountered nesting condition in dbldelta")
+            raise RuntimeError("encountered nesting condition in nesting_function_weights")
 
         _sort3(energies, sorted_order, sorted_energies)
         _strict_sorted_energies3(sorted_energies, strict_energies)
@@ -3222,7 +3139,7 @@ def _polstat_logarithmic_weights_numba(
     for index in range(4):
         if sorted_differences[index] < absolute_floor:
             if index == 2:
-                raise RuntimeError("encountered nesting condition in polstat")
+                raise RuntimeError("encountered nesting condition in static_polarization_weights")
             logarithms[index] = 0.0
             sorted_differences[index] = 0.0
         else:
@@ -3386,7 +3303,7 @@ def _polstat_logarithmic_weights_numba(
 def _check_polstat_weights_numba(weights: FloatArray) -> None:
     for vertex_index in range(4):
         if weights[vertex_index] < 0.0:
-            raise RuntimeError("negative polstat weights encountered")
+            raise RuntimeError("negative static_polarization_weights values encountered")
 
 
 @njit(cache=True)

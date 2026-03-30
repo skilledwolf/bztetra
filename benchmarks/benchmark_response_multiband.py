@@ -5,9 +5,9 @@ import time
 
 import numpy as np
 
-from tetrabz import fermigr
-from tetrabz import polcmplx
-from tetrabz import prepare_response_problem
+from tetrabz import fermi_golden_rule_weights
+from tetrabz import complex_frequency_polarization_weights
+from tetrabz import prepare_response_evaluator
 
 
 FERMI_ENERGY = 0.5
@@ -20,7 +20,7 @@ def main() -> None:
     sample_energies = np.linspace(0.0, 1.25, args.energy_count, dtype=np.float64)
     complex_sample_energies = 1j * np.linspace(0.1, 2.0, args.energy_count, dtype=np.float64)
     occupied, target = _synthetic_multiband_response_bands(reciprocal_vectors, grid_shape, band_count=args.bands)
-    prepared = prepare_response_problem(
+    prepared = prepare_response_evaluator(
         reciprocal_vectors,
         occupied,
         target,
@@ -30,8 +30,8 @@ def main() -> None:
 
     tasks = [
         (
-            "fermigr",
-            lambda: fermigr(
+            "fermi_golden_rule_weights",
+            lambda: fermi_golden_rule_weights(
                 reciprocal_vectors,
                 occupied,
                 target,
@@ -41,8 +41,8 @@ def main() -> None:
             ),
         ),
         (
-            "polcmplx",
-            lambda: polcmplx(
+            "complex_frequency_polarization_weights",
+            lambda: complex_frequency_polarization_weights(
                 reciprocal_vectors,
                 occupied,
                 target,
@@ -52,12 +52,12 @@ def main() -> None:
             ),
         ),
         (
-            "fermigr_prepared",
-            lambda: prepared.fermigr(sample_energies),
+            "fermi_golden_rule_weights_prepared",
+            lambda: prepared.fermi_golden_rule_weights(sample_energies),
         ),
         (
-            "polcmplx_prepared",
-            lambda: prepared.polcmplx(complex_sample_energies),
+            "complex_frequency_polarization_weights_prepared",
+            lambda: prepared.complex_frequency_polarization_weights(complex_sample_energies),
         ),
     ]
 
@@ -118,7 +118,7 @@ def _centered_fractional_kpoint(
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Benchmark multiband frequency-response workloads for fermigr/polcmplx, including prepared-response reuse."
+        description="Benchmark multiband frequency-response workloads for fermi_golden_rule_weights/complex_frequency_polarization_weights, including prepared-response reuse."
     )
     parser.add_argument("--grid", type=int, default=16, help="Cubic grid size to benchmark (default: 16)")
     parser.add_argument("--bands", type=int, default=6, help="Number of occupied and target bands (default: 6)")

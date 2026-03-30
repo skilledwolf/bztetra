@@ -131,7 +131,7 @@ def make_response_eigenvalues(bvec: np.ndarray, grid_shape: tuple[int, int, int]
     return eigenvalues
 
 
-def legacy_8x8_dblstep_weighted_integrals() -> FloatArray:
+def legacy_8x8_phase_space_overlap_weighted_integrals() -> FloatArray:
     return np.array(
         [
             [0.48024, 0.12259],
@@ -141,7 +141,7 @@ def legacy_8x8_dblstep_weighted_integrals() -> FloatArray:
     )
 
 
-def legacy_8x8_dbldelta_weighted_integrals() -> FloatArray:
+def legacy_8x8_nesting_function_weighted_integrals() -> FloatArray:
     return np.array(
         [
             [6.0896, 3.2066],
@@ -151,7 +151,7 @@ def legacy_8x8_dbldelta_weighted_integrals() -> FloatArray:
     )
 
 
-def exact_dblstep_weighted_integrals() -> FloatArray:
+def exact_phase_space_overlap_weighted_integrals() -> FloatArray:
     return np.array(
         [
             [49.0 * np.pi / 320.0, np.pi * (512.0 * np.sqrt(2.0) - 319.0) / 10240.0],
@@ -161,7 +161,7 @@ def exact_dblstep_weighted_integrals() -> FloatArray:
     )
 
 
-def exact_dbldelta_weighted_integrals() -> FloatArray:
+def exact_nesting_function_weighted_integrals() -> FloatArray:
     return np.array(
         [
             [2.0 * np.pi, np.pi],
@@ -225,11 +225,11 @@ def exact_polstat_weighted_integrals() -> FloatArray:
     )
 
 
-def fermigr_energy_points() -> FloatArray:
+def fermi_golden_rule_energy_points() -> FloatArray:
     return np.array([1.0 / 3.0, 2.0 / 3.0, 1.0], dtype=np.float64)
 
 
-def legacy_8x8_fermigr_weighted_integrals() -> FloatArray:
+def legacy_8x8_fermi_golden_rule_weighted_integrals() -> FloatArray:
     return np.array(
         [
             [[1.3905, 0.39227], [0.0, 0.0]],
@@ -240,7 +240,7 @@ def legacy_8x8_fermigr_weighted_integrals() -> FloatArray:
     )
 
 
-def legacy_16x8_fermigr_weighted_integrals() -> FloatArray:
+def legacy_16x8_fermi_golden_rule_weighted_integrals() -> FloatArray:
     return np.array(
         [
             [[1.5389, 0.47167], [0.0, 0.0]],
@@ -251,7 +251,7 @@ def legacy_16x8_fermigr_weighted_integrals() -> FloatArray:
     )
 
 
-def exact_fermigr_weighted_integrals() -> FloatArray:
+def exact_fermi_golden_rule_weighted_integrals() -> FloatArray:
     return np.array(
         [
             [[4.0 * np.pi / 9.0, 5183.0 * np.pi / 41472.0], [0.0, 0.0]],
@@ -262,11 +262,11 @@ def exact_fermigr_weighted_integrals() -> FloatArray:
     )
 
 
-def polcmplx_energy_points() -> np.ndarray:
+def complex_frequency_polarization_energy_points() -> np.ndarray:
     return np.array([-2.0 + 1.0j, 0.0 + 2.0j, 1.0 - 0.5j], dtype=np.complex128)
 
 
-def legacy_8x8_polcmplx_weighted_integrals() -> np.ndarray:
+def legacy_8x8_complex_frequency_polarization_weighted_integrals() -> np.ndarray:
     return np.array(
         [
             [
@@ -286,7 +286,7 @@ def legacy_8x8_polcmplx_weighted_integrals() -> np.ndarray:
     )
 
 
-def legacy_16x8_polcmplx_weighted_integrals() -> np.ndarray:
+def legacy_16x8_complex_frequency_polarization_weighted_integrals() -> np.ndarray:
     return np.array(
         [
             [
@@ -306,8 +306,8 @@ def legacy_16x8_polcmplx_weighted_integrals() -> np.ndarray:
     )
 
 
-def exact_polcmplx_weighted_integrals() -> np.ndarray:
-    energies = polcmplx_energy_points()
+def exact_complex_frequency_polarization_weighted_integrals() -> np.ndarray:
+    energies = complex_frequency_polarization_energy_points()
     values = np.zeros((energies.size, 2, 2), dtype=np.complex128)
     values[:, 0, 0] = np.array(
         [
@@ -330,7 +330,7 @@ def exact_polcmplx_weighted_integrals() -> np.ndarray:
     return values
 
 
-def exact_polcmplx_constant_gap_channels(energies: np.ndarray) -> np.ndarray:
+def exact_complex_frequency_polarization_constant_gap_channels(energies: np.ndarray) -> np.ndarray:
     samples = np.asarray(energies, dtype=np.complex128)
     values = np.empty((samples.size, 2), dtype=np.complex128)
     values[:, 0] = (8.0 * np.pi) / (5.0 * (1.0 + 2.0 * samples))

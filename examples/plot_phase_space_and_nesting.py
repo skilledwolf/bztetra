@@ -5,8 +5,8 @@ from pathlib import Path
 
 import numpy as np
 
-from tetrabz import dbldelta
-from tetrabz import dblstep
+from tetrabz import nesting_function_weights
+from tetrabz import phase_space_overlap_weights
 
 try:
     import matplotlib
@@ -17,7 +17,7 @@ except ImportError as exc:  # pragma: no cover - runtime dependency check
     raise SystemExit("matplotlib is required for this example. Install with `pip install -e '.[plot]'`.") from exc
 
 
-DEFAULT_OUTPUT = Path("build/review_plots/dblstep_dbldelta.png")
+DEFAULT_OUTPUT = Path("build/review_plots/phase_space_and_nesting.png")
 GRID_SHAPE = (32, 32, 32)
 Q_DBLSTEP = np.linspace(0.0, 2.5, 26, dtype=np.float64)
 Q_DBLDELTA = np.linspace(0.35, 2.5, 24, dtype=np.float64)
@@ -28,22 +28,22 @@ FERMI_WAVEVECTOR = 1.0
 def main() -> None:
     args = _parse_args()
 
-    dblstep_curve = compute_curve(dblstep, Q_DBLSTEP)
-    dbldelta_curve = compute_curve(dbldelta, Q_DBLDELTA)
+    overlap_curve = compute_curve(phase_space_overlap_weights, Q_DBLSTEP)
+    nesting_curve = compute_curve(nesting_function_weights, Q_DBLDELTA)
 
-    dblstep_exact = exact_dblstep_curve(Q_DBLSTEP)
-    dbldelta_exact = exact_dbldelta_curve(Q_DBLDELTA)
+    overlap_exact = exact_overlap_curve(Q_DBLSTEP)
+    nesting_exact = exact_nesting_curve(Q_DBLDELTA)
 
-    dblstep_normalized = dblstep_curve / half_fermi_volume()
-    dblstep_exact_normalized = dblstep_exact / half_fermi_volume()
-    dbldelta_normalized = normalize_dbldelta_curve(Q_DBLDELTA, dbldelta_curve)
-    dbldelta_exact_normalized = normalize_dbldelta_curve(Q_DBLDELTA, dbldelta_exact)
+    overlap_normalized = overlap_curve / half_fermi_volume()
+    overlap_exact_normalized = overlap_exact / half_fermi_volume()
+    nesting_normalized = normalize_nesting_curve(Q_DBLDELTA, nesting_curve)
+    nesting_exact_normalized = normalize_nesting_curve(Q_DBLDELTA, nesting_exact)
 
     figure = build_figure(
-        dblstep_normalized,
-        dblstep_exact_normalized,
-        dbldelta_normalized,
-        dbldelta_exact_normalized,
+        overlap_normalized,
+        overlap_exact_normalized,
+        nesting_normalized,
+        nesting_exact_normalized,
     )
 
     output_path = args.output.resolve()
@@ -51,12 +51,12 @@ def main() -> None:
     figure.savefig(output_path, dpi=180, bbox_inches="tight")
     plt.close(figure)
 
-    dblstep_error = np.max(np.abs(dblstep_normalized - dblstep_exact_normalized))
-    dbldelta_mask = Q_DBLDELTA < 1.85
-    dbldelta_error = np.max(np.abs(dbldelta_normalized[dbldelta_mask] - dbldelta_exact_normalized[dbldelta_mask]))
+    overlap_error = np.max(np.abs(overlap_normalized - overlap_exact_normalized))
+    nesting_mask = Q_DBLDELTA < 1.85
+    nesting_error = np.max(np.abs(nesting_normalized[nesting_mask] - nesting_exact_normalized[nesting_mask]))
     print(f"Wrote plot to {output_path}")
-    print(f"Max |normalized dblstep - exact|: {dblstep_error:.6e}")
-    print(f"Max |normalized dbldelta - exact| for q < 1.85: {dbldelta_error:.6e}")
+    print(f"Max |normalized phase-space overlap - exact|: {overlap_error:.6e}")
+    print(f"Max |normalized nesting function - exact| for q < 1.85: {nesting_error:.6e}")
 
 
 def compute_curve(kernel, q_values: np.ndarray) -> np.ndarray:
@@ -97,7 +97,7 @@ def build_shifted_free_electron_bands(
     return reciprocal_vectors, occupied, target
 
 
-def exact_dblstep_curve(q_values: np.ndarray) -> np.ndarray:
+def exact_overlap_curve(q_values: np.ndarray) -> np.ndarray:
     values = np.zeros_like(q_values)
     active = q_values < 2.0 * FERMI_WAVEVECTOR
     q_active = q_values[active]
@@ -105,7 +105,7 @@ def exact_dblstep_curve(q_values: np.ndarray) -> np.ndarray:
     return values
 
 
-def exact_dbldelta_curve(q_values: np.ndarray) -> np.ndarray:
+def exact_nesting_curve(q_values: np.ndarray) -> np.ndarray:
     values = np.zeros_like(q_values)
     active = (q_values > 0.0) & (q_values < 2.0 * FERMI_WAVEVECTOR)
     values[active] = 2.0 * np.pi / q_values[active]
@@ -116,7 +116,7 @@ def half_fermi_volume() -> float:
     return 2.0 * np.pi / 3.0
 
 
-def normalize_dbldelta_curve(q_values: np.ndarray, values: np.ndarray) -> np.ndarray:
+def normalize_nesting_curve(q_values: np.ndarray, values: np.ndarray) -> np.ndarray:
     normalized = np.zeros_like(values)
     active = q_values > 0.0
     normalized[active] = q_values[active] * values[active] / (2.0 * np.pi)
@@ -135,7 +135,7 @@ def build_figure(
     axes[0].scatter(Q_DBLSTEP, dblstep_curve, color="#0A9396", s=24, label="tetrabz (32^3)")
     axes[0].axvline(2.0, color="#AE2012", linewidth=1.2, linestyle=":")
     axes[0].grid(alpha=0.2)
-    axes[0].set_title("dblstep")
+    axes[0].set_title("Phase-Space Overlap Weights")
     axes[0].set_xlabel(r"Momentum transfer $q / k_F$")
     axes[0].set_ylabel("Normalized overlap weight")
     axes[0].set_xlim(0.0, 2.5)
@@ -153,7 +153,7 @@ def build_figure(
     axes[1].scatter(Q_DBLDELTA, dbldelta_curve, color="#CA6702", s=24, label="tetrabz (32^3)")
     axes[1].axvline(2.0, color="#AE2012", linewidth=1.2, linestyle=":")
     axes[1].grid(alpha=0.2)
-    axes[1].set_title("dbldelta")
+    axes[1].set_title("Nesting Function Weights")
     axes[1].set_xlabel(r"Momentum transfer $q / k_F$")
     axes[1].set_ylabel(r"$q\,W(q)/(2\pi)$")
     axes[1].set_xlim(0.3, 2.5)
@@ -167,7 +167,7 @@ def build_figure(
         color="#555555",
     )
 
-    figure.suptitle("Free-Electron Phase-Space Response for dblstep and dbldelta")
+    figure.suptitle("Free-Electron Phase-Space Response: Overlap and Nesting Weights")
     return figure
 
 
@@ -184,7 +184,7 @@ def _centered_fractional_kpoint(
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Plot free-electron phase-space review curves for dblstep and dbldelta."
+        description="Plot free-electron phase-space review curves for the overlap and nesting kernels."
     )
     parser.add_argument(
         "--output",

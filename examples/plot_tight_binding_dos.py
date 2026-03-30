@@ -5,9 +5,9 @@ from pathlib import Path
 
 import numpy as np
 
-from tetrabz import dos
-from tetrabz import fermieng
-from tetrabz import intdos
+from tetrabz import density_of_states_weights
+from tetrabz import solve_fermi_energy
+from tetrabz import integrated_density_of_states_weights
 
 try:
     import matplotlib
@@ -40,7 +40,7 @@ def main() -> None:
         sample_energies,
         "optimized",
     )
-    fermi_energy, _, _ = fermieng(
+    fermi_solution = solve_fermi_energy(
         reciprocal_vectors,
         coarse_eigenvalues,
         electrons_per_spin=0.5,
@@ -64,7 +64,7 @@ def main() -> None:
         legacy_linear,
         legacy_optimized,
         legacy_converged_intdos,
-        fermi_energy,
+        fermi_solution.fermi_energy,
     )
 
     output_path = args.output.resolve()
@@ -73,7 +73,7 @@ def main() -> None:
     plt.close(figure)
 
     print(f"Wrote plot to {output_path}")
-    print(f"Optimized 8x8x8 half-filling Fermi energy: {fermi_energy:.6f}")
+    print(f"Optimized 8x8x8 half-filling Fermi energy: {fermi_solution.fermi_energy:.6f}")
     print(f"Max |optimized port - legacy optimized|: {np.max(np.abs(optimized_dos - legacy_optimized[:, 1])):.6e}")
     print(f"Max |linear port - legacy linear|: {np.max(np.abs(linear_dos - legacy_linear[:, 1])):.6e}")
     print(f"Reference integrated DOS endpoint after normalization: {legacy_converged_intdos[-1]:.6f}")
@@ -191,14 +191,14 @@ def _compute_spectra(
     method: str,
 ) -> tuple[np.ndarray, np.ndarray]:
     weight_grid_shape = tuple(int(item) for item in eigenvalues.shape[:3])
-    dos_weights = dos(
+    dos_weights = density_of_states_weights(
         reciprocal_vectors,
         eigenvalues,
         sample_energies,
         weight_grid_shape=weight_grid_shape,
         method=method,
     )
-    intdos_weights = intdos(
+    intdos_weights = integrated_density_of_states_weights(
         reciprocal_vectors,
         eigenvalues,
         sample_energies,

@@ -30,7 +30,7 @@ def main() -> None:
 
     bvec, scalar_eigenvalues = _free_electron_case(grid_shape)
     _, occupied_eigenvalues, target_eigenvalues = _free_electron_response_case(grid_shape)
-    prepared_response = tetrabz.prepare_response_problem(
+    prepared_response = tetrabz.prepare_response_evaluator(
         bvec,
         occupied_eigenvalues - 0.5,
         target_eigenvalues - 0.5,
@@ -39,15 +39,15 @@ def main() -> None:
     )
 
     dos_energies = _legacy_dos_energy_points()
-    fermigr_energies = np.array([1.0 / 3.0, 2.0 / 3.0, 1.0], dtype=np.float64)
-    polcmplx_energies = np.array([-2.0 + 1.0j, 0.0 + 2.0j, 1.0 - 0.5j], dtype=np.complex128)
+    fermi_golden_rule_energies = np.array([1.0 / 3.0, 2.0 / 3.0, 1.0], dtype=np.float64)
+    complex_frequency_energies = np.array([-2.0 + 1.0j, 0.0 + 2.0j, 1.0 - 0.5j], dtype=np.complex128)
     electrons_per_spin = _legacy_electron_count_per_spin(bvec)
 
     results = [
         _benchmark_array_case(
-            "occ",
+            "occupation_weights",
             lambda: libtetrabz.occ(bvec, scalar_eigenvalues - 0.5),
-            lambda: tetrabz.occ(
+            lambda: tetrabz.occupation_weights(
                 bvec,
                 scalar_eigenvalues - 0.5,
                 weight_grid_shape=grid_shape,
@@ -63,9 +63,9 @@ def main() -> None:
             repeats=args.repeats,
         ),
         _benchmark_array_case(
-            "dos",
+            "density_of_states_weights",
             lambda: libtetrabz.dos(bvec, scalar_eigenvalues, dos_energies),
-            lambda: tetrabz.dos(
+            lambda: tetrabz.density_of_states_weights(
                 bvec,
                 scalar_eigenvalues,
                 dos_energies,
@@ -76,9 +76,9 @@ def main() -> None:
             repeats=args.repeats,
         ),
         _benchmark_array_case(
-            "intdos",
+            "integrated_density_of_states_weights",
             lambda: libtetrabz.intdos(bvec, scalar_eigenvalues, dos_energies),
-            lambda: tetrabz.intdos(
+            lambda: tetrabz.integrated_density_of_states_weights(
                 bvec,
                 scalar_eigenvalues,
                 dos_energies,
@@ -89,9 +89,9 @@ def main() -> None:
             repeats=args.repeats,
         ),
         _benchmark_array_case(
-            "dblstep",
+            "phase_space_overlap_weights",
             lambda: libtetrabz.dblstep(bvec, occupied_eigenvalues - 0.5, target_eigenvalues - 0.5),
-            lambda: tetrabz.dblstep(
+            lambda: tetrabz.phase_space_overlap_weights(
                 bvec,
                 occupied_eigenvalues - 0.5,
                 target_eigenvalues - 0.5,
@@ -99,14 +99,14 @@ def main() -> None:
                 method="optimized",
             ),
             port_normalizer=_swap_pair_axes,
-            prepared_callable=prepared_response.dblstep,
+            prepared_callable=prepared_response.phase_space_overlap_weights,
             prepared_normalizer=_swap_pair_axes,
             repeats=args.repeats,
         ),
         _benchmark_array_case(
-            "dbldelta",
+            "nesting_function_weights",
             lambda: libtetrabz.dbldelta(bvec, occupied_eigenvalues - 0.5, target_eigenvalues - 0.5),
-            lambda: tetrabz.dbldelta(
+            lambda: tetrabz.nesting_function_weights(
                 bvec,
                 occupied_eigenvalues - 0.5,
                 target_eigenvalues - 0.5,
@@ -114,14 +114,14 @@ def main() -> None:
                 method="optimized",
             ),
             port_normalizer=_swap_pair_axes,
-            prepared_callable=prepared_response.dbldelta,
+            prepared_callable=prepared_response.nesting_function_weights,
             prepared_normalizer=_swap_pair_axes,
             repeats=args.repeats,
         ),
         _benchmark_array_case(
-            "polstat",
+            "static_polarization_weights",
             lambda: libtetrabz.polstat(bvec, occupied_eigenvalues - 0.5, target_eigenvalues - 0.5),
-            lambda: tetrabz.polstat(
+            lambda: tetrabz.static_polarization_weights(
                 bvec,
                 occupied_eigenvalues - 0.5,
                 target_eigenvalues - 0.5,
@@ -129,39 +129,39 @@ def main() -> None:
                 method="optimized",
             ),
             port_normalizer=_swap_pair_axes,
-            prepared_callable=prepared_response.polstat,
+            prepared_callable=prepared_response.static_polarization_weights,
             prepared_normalizer=_swap_pair_axes,
             repeats=args.repeats,
         ),
         _benchmark_array_case(
-            "fermigr",
-            lambda: libtetrabz.fermigr(bvec, occupied_eigenvalues - 0.5, target_eigenvalues - 0.5, fermigr_energies),
-            lambda: tetrabz.fermigr(
+            "fermi_golden_rule_weights",
+            lambda: libtetrabz.fermigr(bvec, occupied_eigenvalues - 0.5, target_eigenvalues - 0.5, fermi_golden_rule_energies),
+            lambda: tetrabz.fermi_golden_rule_weights(
                 bvec,
                 occupied_eigenvalues - 0.5,
                 target_eigenvalues - 0.5,
-                fermigr_energies,
+                fermi_golden_rule_energies,
                 weight_grid_shape=grid_shape,
                 method="optimized",
             ),
             port_normalizer=_normalize_port_frequency_output,
-            prepared_callable=lambda: prepared_response.fermigr(fermigr_energies),
+            prepared_callable=lambda: prepared_response.fermi_golden_rule_weights(fermi_golden_rule_energies),
             prepared_normalizer=_normalize_port_frequency_output,
             repeats=args.repeats,
         ),
         _benchmark_array_case(
-            "polcmplx",
-            lambda: libtetrabz.polcmplx(bvec, occupied_eigenvalues - 0.5, target_eigenvalues - 0.5, polcmplx_energies),
-            lambda: tetrabz.polcmplx(
+            "complex_frequency_polarization_weights",
+            lambda: libtetrabz.polcmplx(bvec, occupied_eigenvalues - 0.5, target_eigenvalues - 0.5, complex_frequency_energies),
+            lambda: tetrabz.complex_frequency_polarization_weights(
                 bvec,
                 occupied_eigenvalues - 0.5,
                 target_eigenvalues - 0.5,
-                polcmplx_energies,
+                complex_frequency_energies,
                 weight_grid_shape=grid_shape,
                 method="optimized",
             ),
             port_normalizer=_normalize_port_frequency_output,
-            prepared_callable=lambda: prepared_response.polcmplx(polcmplx_energies),
+            prepared_callable=lambda: prepared_response.complex_frequency_polarization_weights(complex_frequency_energies),
             prepared_normalizer=_normalize_port_frequency_output,
             repeats=args.repeats,
         ),
@@ -172,14 +172,14 @@ def main() -> None:
     print("Legacy reference: libtetrabz 0.1.2")
     print()
     print(
-        f"{'case':<10} {'legacy(s)':>10} {'tetrabz(s)':>11} {'prepared(s)':>12} "
+        f"{'case':<38} {'legacy(s)':>10} {'tetrabz(s)':>11} {'prepared(s)':>12} "
         f"{'speedup':>9} {'max|diff|':>12}"
     )
     for result in results:
         prepared = "-" if result.prepared_seconds is None else f"{result.prepared_seconds:>12.3f}"
         speedup = result.legacy_seconds / result.port_seconds
         print(
-            f"{result.name:<10} {result.legacy_seconds:>10.3f} {result.port_seconds:>11.3f} "
+            f"{result.name:<38} {result.legacy_seconds:>10.3f} {result.port_seconds:>11.3f} "
             f"{prepared} {speedup:>9.2f} {result.max_abs_diff:>12.3e}"
         )
         if result.notes:
@@ -236,7 +236,7 @@ def _benchmark_fermieng_case(
     repeats: int,
 ) -> BenchmarkResult:
     legacy_ef, legacy_weights, legacy_iterations = libtetrabz.fermieng(bvec, eigenvalues, electrons_per_spin)
-    port_ef, port_weights, port_iterations = tetrabz.fermieng(
+    port_result = tetrabz.solve_fermi_energy(
         bvec,
         eigenvalues,
         electrons_per_spin,
@@ -246,7 +246,7 @@ def _benchmark_fermieng_case(
 
     legacy_seconds = _time_best(lambda: libtetrabz.fermieng(bvec, eigenvalues, electrons_per_spin), repeats=repeats)
     port_seconds = _time_best(
-        lambda: tetrabz.fermieng(
+        lambda: tetrabz.solve_fermi_energy(
             bvec,
             eigenvalues,
             electrons_per_spin,
@@ -256,14 +256,14 @@ def _benchmark_fermieng_case(
         repeats=repeats,
     )
 
-    weight_diff = float(np.max(np.abs(np.asarray(legacy_weights) - np.asarray(port_weights))))
-    ef_diff = abs(float(legacy_ef) - float(port_ef))
+    weight_diff = float(np.max(np.abs(np.asarray(legacy_weights) - np.asarray(port_result.weights))))
+    ef_diff = abs(float(legacy_ef) - float(port_result.fermi_energy))
     notes = (
         f"|ef diff|={ef_diff:.3e}, legacy_iter={int(legacy_iterations)}, "
-        f"tetrabz_iter={int(port_iterations)}"
+        f"tetrabz_iter={int(port_result.iterations)}"
     )
     return BenchmarkResult(
-        name="fermieng",
+        name="solve_fermi_energy",
         legacy_seconds=legacy_seconds,
         port_seconds=port_seconds,
         prepared_seconds=None,
