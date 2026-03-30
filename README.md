@@ -67,8 +67,8 @@ and write a figure under `build/review_plots/`:
 ```
 
 For a physically meaningful complex-frequency review plot, reproduce the
-broadened free-electron interband response with exact comparison channels and
-write a figure under `build/review_plots/`:
+free-electron interband polarization on the Matsubara axis with exact
+comparison channels and write a figure under `build/review_plots/`:
 
 ```bash
 .venv/bin/python examples/plot_polcmplx.py

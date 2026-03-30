@@ -22,7 +22,7 @@ def main() -> None:
     args = _parse_args()
     grid_shape = (args.grid, args.grid, args.grid)
     sample_energies = np.linspace(0.0, 1.25, args.energy_count, dtype=np.float64)
-    complex_sample_energies = sample_energies + 0.5j
+    complex_sample_energies = 1j * np.linspace(0.1, 2.0, args.energy_count, dtype=np.float64)
 
     reciprocal_vectors = np.diag([3.0, 3.0, 3.0]).astype(np.float64)
     scalar_bands = _free_electron_bands(reciprocal_vectors, grid_shape)

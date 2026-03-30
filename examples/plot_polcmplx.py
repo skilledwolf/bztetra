@@ -16,10 +16,9 @@ except ImportError as exc:  # pragma: no cover - runtime dependency check
     raise SystemExit("matplotlib is required for this example. Install with `pip install -e '.[plot]'`.") from exc
 
 
-DEFAULT_OUTPUT = Path("build/review_plots/polcmplx.png")
+DEFAULT_OUTPUT = Path("build/review_plots/polcmplx_matsubara.png")
 GRID_SHAPE = (16, 16, 16)
-REAL_FREQUENCIES = np.linspace(-2.5, 1.5, 121, dtype=np.float64)
-BROADENING = 0.5
+MATSUBARA_FREQUENCIES = np.linspace(0.1, 2.5, 81, dtype=np.float64)
 FERMI_ENERGY = 0.5
 
 
@@ -28,20 +27,23 @@ def main() -> None:
 
     reciprocal_vectors, occupied, target = build_response_bands(GRID_SHAPE)
     metric = build_weight_metric(reciprocal_vectors, GRID_SHAPE)
-    complex_energies = REAL_FREQUENCIES + 1j * BROADENING
-    computed = compute_weighted_curve(reciprocal_vectors, occupied, target, metric, complex_energies)
-    exact = exact_interband_curve(complex_energies)
+    sample_energies = 1j * MATSUBARA_FREQUENCIES
 
-    figure = build_figure(computed, exact)
+    weighted = compute_weighted_curve(reciprocal_vectors, occupied, target, metric, sample_energies)
+    exact_channels = exact_constant_gap_channels(sample_energies)
+
+    figure = build_figure(weighted, exact_channels)
 
     output_path = args.output.resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)
     figure.savefig(output_path, dpi=180, bbox_inches="tight")
     plt.close(figure)
 
+    channel_01_error = np.max(np.abs(weighted[:, 1, 0] - exact_channels[:, 0]))
+    channel_11_error = np.max(np.abs(weighted[:, 1, 1] - exact_channels[:, 1]))
     print(f"Wrote plot to {output_path}")
-    print(f"Max |source 0 -> target 1 - exact|: {np.max(np.abs(computed[:, 1, 0] - exact[:, 1, 0])):.6e}")
-    print(f"Max |source 1 -> target 1 - exact|: {np.max(np.abs(computed[:, 1, 1] - exact[:, 1, 1])):.6e}")
+    print(f"Max |0 -> 1 channel - exact|: {channel_01_error:.6e}")
+    print(f"Max |1 -> 1 channel - exact|: {channel_11_error:.6e}")
 
 
 def compute_weighted_curve(
@@ -63,10 +65,11 @@ def compute_weighted_curve(
     return weighted * np.linalg.det(reciprocal_vectors)
 
 
-def exact_interband_curve(energies: np.ndarray) -> np.ndarray:
-    values = np.zeros((energies.size, 2, 2), dtype=np.complex128)
-    values[:, 1, 0] = (8.0 * np.pi) / (5.0 * (1.0 + 2.0 * energies))
-    values[:, 1, 1] = (np.sqrt(8.0) * np.pi) / (5.0 * (1.0 + 4.0 * energies))
+def exact_constant_gap_channels(energies: np.ndarray) -> np.ndarray:
+    samples = np.asarray(energies, dtype=np.complex128)
+    values = np.empty((samples.size, 2), dtype=np.complex128)
+    values[:, 0] = 8.0 * np.pi / (5.0 * (1.0 + 2.0 * samples))
+    values[:, 1] = np.sqrt(8.0) * np.pi / (5.0 * (1.0 + 4.0 * samples))
     return values
 
 
@@ -104,45 +107,58 @@ def build_weight_metric(reciprocal_vectors: np.ndarray, grid_shape: tuple[int, i
     return metric
 
 
-def build_figure(computed: np.ndarray, exact: np.ndarray):
-    figure, axes = plt.subplots(2, 1, figsize=(10.5, 8.0), sharex=True)
+def build_figure(weighted_curve: np.ndarray, exact_channels: np.ndarray):
+    figure, axes = plt.subplots(1, 2, figsize=(12.0, 5.4), sharex=True)
 
-    channel_colors = {
-        "0_to_1": "#0A9396",
-        "1_to_1": "#AE2012",
-    }
+    channels = (
+        ("0 -> 1", weighted_curve[:, 1, 0], exact_channels[:, 0], "#0A9396"),
+        ("1 -> 1", weighted_curve[:, 1, 1], exact_channels[:, 1], "#AE2012"),
+    )
+    parts = (
+        ("Real Part", np.real, axes[0]),
+        ("Imaginary Part", np.imag, axes[1]),
+    )
 
-    axes[0].plot(REAL_FREQUENCIES, exact[:, 1, 0].real, color=channel_colors["0_to_1"], linewidth=2.4, label="Exact Re (0 -> 1)")
-    axes[0].plot(REAL_FREQUENCIES, exact[:, 1, 1].real, color=channel_colors["1_to_1"], linewidth=2.4, label="Exact Re (1 -> 1)")
-    axes[0].scatter(REAL_FREQUENCIES[::6], computed[::6, 1, 0].real, color="#005F73", s=20, label="Port Re (0 -> 1)")
-    axes[0].scatter(REAL_FREQUENCIES[::6], computed[::6, 1, 1].real, color="#9B2226", s=20, marker="s", label="Port Re (1 -> 1)")
-    axes[0].set_ylabel(r"$\Re\, \chi(\omega + i\eta)$")
-    axes[0].grid(alpha=0.2)
+    for title, projector, axis in parts:
+        for label, numerical, exact, color in channels:
+            axis.plot(
+                MATSUBARA_FREQUENCIES,
+                projector(numerical),
+                color=color,
+                linewidth=2.6,
+                label=f"Port {label}",
+            )
+            axis.plot(
+                MATSUBARA_FREQUENCIES,
+                projector(exact),
+                color=color,
+                linewidth=1.4,
+                linestyle="--",
+                label=f"Exact {label}",
+            )
+
+        axis.grid(alpha=0.2)
+        axis.set_title(title)
+        axis.set_xlabel(r"Matsubara frequency $\omega_n$")
+
+    axes[0].set_ylabel(r"Integrated polarization weight")
     axes[0].legend(loc="upper right", fontsize=9)
+    axes[1].legend(loc="lower left", fontsize=9)
 
-    axes[1].plot(REAL_FREQUENCIES, -exact[:, 1, 0].imag, color=channel_colors["0_to_1"], linewidth=2.4, label="Exact -Im (0 -> 1)")
-    axes[1].plot(REAL_FREQUENCIES, -exact[:, 1, 1].imag, color=channel_colors["1_to_1"], linewidth=2.4, label="Exact -Im (1 -> 1)")
-    axes[1].scatter(REAL_FREQUENCIES[::6], -computed[::6, 1, 0].imag, color="#005F73", s=20, label="Port -Im (0 -> 1)")
-    axes[1].scatter(REAL_FREQUENCIES[::6], -computed[::6, 1, 1].imag, color="#9B2226", s=20, marker="s", label="Port -Im (1 -> 1)")
-    axes[1].set_ylabel(r"$-\Im\, \chi(\omega + i\eta)$")
-    axes[1].set_xlabel(r"Real frequency $\omega$")
-    axes[1].grid(alpha=0.2)
-    axes[1].legend(loc="upper right", fontsize=9)
-
-    figure.suptitle(r"Free-Electron Complex Response Along $\omega + i\eta$ With Exact Interband Channels")
+    figure.suptitle(r"Free-Electron Complex Polarization on the Imaginary-Frequency Axis")
     axes[0].annotate(
-        "broadening keeps the poles finite",
-        xy=(-0.5, exact[np.argmin(np.abs(REAL_FREQUENCIES + 0.5)), 1, 0].real),
-        xytext=(-1.7, 0.15),
+        "constant-gap interband channels\ndecay as $1 / (\\Delta + i\\omega_n)$",
+        xy=(0.75, np.real(exact_channels[24, 0])),
+        xytext=(1.15, 2.4),
         arrowprops={"arrowstyle": "->", "color": "#555555"},
         color="#555555",
     )
     axes[1].annotate(
-        r"interband absorption peak near $\omega \approx -0.25$",
-        xy=(-0.25, -exact[np.argmin(np.abs(REAL_FREQUENCIES + 0.25)), 1, 1].imag),
-        xytext=(-1.95, 0.44),
-        arrowprops={"arrowstyle": "->", "color": "#9B2226"},
-        color="#9B2226",
+        "causal response stays smooth\non the Matsubara axis",
+        xy=(1.0, np.imag(exact_channels[32, 1])),
+        xytext=(1.45, -0.65),
+        arrowprops={"arrowstyle": "->", "color": "#555555"},
+        color="#555555",
     )
 
     return figure
@@ -161,7 +177,7 @@ def _centered_fractional_kpoint(
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Plot the complex-frequency free-electron response review figure for the current polcmplx port."
+        description="Plot the free-electron complex polarization review figure on the Matsubara axis."
     )
     parser.add_argument(
         "--output",
