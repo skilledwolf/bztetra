@@ -161,4 +161,12 @@ pip install -e '.[dev,docs]'
 mkdocs serve
 ```
 
+Benchmark entry points live under `benchmarks/`:
+
+```bash
+PYTHONPATH=src python benchmarks/benchmark_hotpaths.py
+PYTHONPATH=src python benchmarks/benchmark_twod_hotpaths.py --profile --profile-task complex_frequency_polarization_weights
+PYTHONPATH=src python benchmarks/benchmark_twod_response_multiband.py --profile --profile-task all
+```
+
 Package versions are derived from git tags at build and install time.
