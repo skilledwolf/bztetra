@@ -83,6 +83,14 @@ comparison channels and write a figure under `build/review_plots/`:
 .venv/bin/python examples/plot_polcmplx.py
 ```
 
+For a physically meaningful phase-space review plot, compare the free-
+electron `dblstep` and `dbldelta` sweeps against their exact overlap / nesting
+curves and write a two-panel figure under `build/review_plots/`:
+
+```bash
+.venv/bin/python examples/plot_dblstep_dbldelta.py
+```
+
 For a numeric DOS / integrated-DOS review that compares the current 8x8
 free-electron fixture against the analytic continuum target, run:
 
