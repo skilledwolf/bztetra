@@ -12,9 +12,9 @@ The implementation strategy is:
 
 - NumPy for array orchestration and test/reference helpers.
 - Numba for hot scalar and tensor kernels once the numerical contracts are
-  locked down. The occupation, DOS, integrated-DOS, `dblstep`, `dbldelta`, and
-  `polstat` paths are now compiled; the next kernel family is the
-  frequency-dependent response layer (`fermigr`, `polcmplx`).
+  locked down. The occupation, DOS, integrated-DOS, `dblstep`, `dbldelta`,
+  `polstat`, and `fermigr` paths are now compiled; `polcmplx` is the remaining
+  major kernel family in scope.
 - SciPy only where it materially helps validation, reference calculations, or
   tooling; it is not a planned dependency for the core runtime path right now.
 
@@ -59,6 +59,14 @@ legacy 3D free-electron Lindhard example and write a figure under
 .venv/bin/python examples/plot_lindhard.py
 ```
 
+For a physically meaningful real-frequency review plot, reproduce the
+free-electron Fermi-golden-rule toy model with the legacy `k^2` matrix element
+and write a figure under `build/review_plots/`:
+
+```bash
+.venv/bin/python examples/plot_fermigr.py
+```
+
 For a numeric DOS / integrated-DOS review that compares the current 8x8
 free-electron fixture against the analytic continuum target, run:
 
@@ -67,15 +75,16 @@ free-electron fixture against the analytic continuum target, run:
 ```
 
 For a quick local timing baseline on the current hot paths (`occ`, `dos`,
-`intdos`, `dblstep`, `dbldelta`, `polstat`), run:
+`intdos`, `dblstep`, `dbldelta`, `polstat`, `fermigr`), run:
 
 ```bash
 PYTHONPATH=src .venv/bin/python benchmarks/benchmark_hotpaths.py
 ```
 
 For a more focused `polstat` timing sweep that isolates the multiband free-
-electron case and the Lindhard small-`q` / `2k_F` branches, run:
+electron case, the Lindhard small-`q` / `2k_F` branches, and the interpolation
+path, run:
 
 ```bash
-PYTHONPATH=src .venv/bin/python benchmarks/benchmark_polstat.py --grid 16 --q-values 0.125 2.0
+PYTHONPATH=src .venv/bin/python benchmarks/benchmark_polstat.py --grid 16 --weight-grid 8 --q-values 0.125,2.0
 ```

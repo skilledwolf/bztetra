@@ -225,6 +225,43 @@ def exact_polstat_weighted_integrals() -> FloatArray:
     )
 
 
+def fermigr_energy_points() -> FloatArray:
+    return np.array([1.0 / 3.0, 2.0 / 3.0, 1.0], dtype=np.float64)
+
+
+def legacy_8x8_fermigr_weighted_integrals() -> FloatArray:
+    return np.array(
+        [
+            [[1.3905, 0.39227], [0.0, 0.0]],
+            [[1.5609, 0.34093], [0.0, 0.0]],
+            [[1.4699, 0.0010928], [0.0, 0.0]],
+        ],
+        dtype=np.float64,
+    )
+
+
+def legacy_16x8_fermigr_weighted_integrals() -> FloatArray:
+    return np.array(
+        [
+            [[1.5389, 0.47167], [0.0, 0.0]],
+            [[1.7770, 0.38944], [0.0, 0.0]],
+            [[1.6065, 0.0], [0.0, 0.0]],
+        ],
+        dtype=np.float64,
+    )
+
+
+def exact_fermigr_weighted_integrals() -> FloatArray:
+    return np.array(
+        [
+            [[4.0 * np.pi / 9.0, 5183.0 * np.pi / 41472.0], [0.0, 0.0]],
+            [[1295.0 * np.pi / 2592.0, 4559.0 * np.pi / 41472.0], [0.0, 0.0]],
+            [[15.0 * np.pi / 32.0, 0.0], [0.0, 0.0]],
+        ],
+        dtype=np.float64,
+    )
+
+
 def lindhard_q_points(count: int = 31, qmax: float = 4.0) -> FloatArray:
     return np.linspace(0.0, qmax, count, dtype=np.float64)
 

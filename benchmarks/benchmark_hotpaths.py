@@ -8,6 +8,7 @@ import numpy as np
 from tetrabz import dbldelta
 from tetrabz import dblstep
 from tetrabz import dos
+from tetrabz import fermigr
 from tetrabz import intdos
 from tetrabz import occ
 from tetrabz import polstat
@@ -83,6 +84,17 @@ def main() -> None:
                 reciprocal_vectors,
                 occupied_bands,
                 target_bands,
+                weight_grid_shape=grid_shape,
+                method=args.method,
+            ),
+        ),
+        (
+            "fermigr",
+            lambda: fermigr(
+                reciprocal_vectors,
+                response_occupied_bands,
+                response_target_bands,
+                sample_energies,
                 weight_grid_shape=grid_shape,
                 method=args.method,
             ),

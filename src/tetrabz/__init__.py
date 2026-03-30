@@ -9,6 +9,8 @@ from .response import dblstep
 from .response import dbldelta
 from .response import double_delta_weights
 from .response import double_step_weights
+from .response import fermi_golden_rule_weights
+from .response import fermigr
 from .response import polstat
 from .response import static_polarization_weights
 from .formulas import SimplexCut
@@ -36,7 +38,9 @@ __all__ = [
     "dos",
     "double_delta_weights",
     "double_step_weights",
+    "fermi_golden_rule_weights",
     "fermieng",
+    "fermigr",
     "integrated_density_of_states_weights",
     "intdos",
     "occ",

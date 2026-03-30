@@ -8,7 +8,9 @@ from tetrabz import density_of_states_weights
 from tetrabz import dos
 from tetrabz import double_delta_weights
 from tetrabz import double_step_weights
+from tetrabz import fermi_golden_rule_weights
 from tetrabz import fermieng
+from tetrabz import fermigr
 from tetrabz import integrated_density_of_states_weights
 from tetrabz import IntegrationMesh
 from tetrabz import intdos
@@ -36,7 +38,9 @@ __all__ = [
     "dos",
     "double_delta_weights",
     "double_step_weights",
+    "fermi_golden_rule_weights",
     "fermieng",
+    "fermigr",
     "integrated_density_of_states_weights",
     "intdos",
     "occ",
