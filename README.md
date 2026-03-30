@@ -14,6 +14,12 @@ The implementation strategy is:
 - Numba for hot scalar and tensor kernels once the numerical contracts are
   locked down. The occupation, DOS, integrated-DOS, `dblstep`, `dbldelta`,
   `polstat`, `fermigr`, and `polcmplx` paths are now compiled.
+- Shared setup is also optimized now: direct repeated calls reuse cached mesh
+  geometry internally, and tetrahedron interpolation is compiled instead of
+  running in Python loops.
+- A prepared response API for repeated sweeps on fixed bands, so
+  `fermigr`/`polcmplx` users can reuse mesh and tetrahedron setup instead of
+  rebuilding it for every energy grid.
 - SciPy only where it materially helps validation, reference calculations, or
   tooling; it is not a planned dependency for the core runtime path right now.
 
@@ -82,10 +88,24 @@ free-electron fixture against the analytic continuum target, run:
 ```
 
 For a quick local timing baseline on the current hot paths (`occ`, `dos`,
-`intdos`, `dblstep`, `dbldelta`, `polstat`, `fermigr`, `polcmplx`), run:
+`intdos`, `dblstep`, `dbldelta`, `polstat`, `fermigr`, `polcmplx`, and their
+prepared-response counterparts), run:
 
 ```bash
 PYTHONPATH=src .venv/bin/python benchmarks/benchmark_hotpaths.py
+```
+
+For repeated response sweeps on a fixed pair of band manifolds, prepare the
+mesh/tetrahedra once and reuse them explicitly. Warm direct calls already
+reuse the mesh cache internally, but this API also skips repeated tetrahedron
+interpolation:
+
+```python
+from tetrabz import prepare_response_problem
+
+response = prepare_response_problem(bvec, occupied_bands, target_bands, weight_grid_shape=(16, 16, 16))
+weights_real = response.fermigr(sample_energies)
+weights_complex = response.polcmplx(1j * matsubara_frequencies)
 ```
 
 For a more focused `polstat` timing sweep that isolates the multiband free-

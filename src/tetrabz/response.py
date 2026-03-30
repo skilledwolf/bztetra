@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
 import numpy.typing as npt
 from numba import njit
@@ -18,10 +20,92 @@ from .formulas import small_tetrahedron_cut
 from .formulas import triangle_cut
 from .geometry import IntegrationMesh
 from .geometry import TetraMethod
-from .geometry import build_integration_mesh
+from .geometry import cached_integration_mesh
 
 
 ComplexArray = npt.NDArray[np.complex128]
+
+
+@dataclass(slots=True)
+class PreparedResponseProblem:
+    """Reusable response setup for repeated evaluations on a fixed band pair."""
+
+    mesh: IntegrationMesh
+    occupied_tetra: FloatArray
+    target_tetra: FloatArray
+
+    def double_step_weights(self) -> FloatArray:
+        local_weights = _double_step_weights_on_local_mesh(self.mesh, self.occupied_tetra, self.target_tetra)
+        output_flat = interpolate_local_values(self.mesh, local_weights)
+        return _unflatten_pair_band_last(output_flat, self.mesh.weight_grid_shape)
+
+    def dblstep(self) -> FloatArray:
+        return self.double_step_weights()
+
+    def double_delta_weights(self) -> FloatArray:
+        local_weights = _double_delta_weights_on_local_mesh(self.mesh, self.occupied_tetra, self.target_tetra)
+        output_flat = interpolate_local_values(self.mesh, local_weights)
+        return _unflatten_pair_band_last(output_flat, self.mesh.weight_grid_shape)
+
+    def dbldelta(self) -> FloatArray:
+        return self.double_delta_weights()
+
+    def static_polarization_weights(self) -> FloatArray:
+        local_weights = _static_polarization_weights_on_local_mesh(self.mesh, self.occupied_tetra, self.target_tetra)
+        output_flat = interpolate_local_values(self.mesh, local_weights)
+        return _unflatten_pair_band_last(output_flat, self.mesh.weight_grid_shape)
+
+    def polstat(self) -> FloatArray:
+        return self.static_polarization_weights()
+
+    def fermi_golden_rule_weights(self, energies: npt.ArrayLike) -> FloatArray:
+        sample_energies = normalize_energy_samples(energies)
+        local_weights = _fermi_golden_rule_weights_on_local_mesh(
+            self.mesh,
+            self.occupied_tetra,
+            self.target_tetra,
+            sample_energies,
+        )
+        output_flat = interpolate_local_values(self.mesh, local_weights)
+        return _unflatten_energy_pair_band_last(output_flat, self.mesh.weight_grid_shape)
+
+    def fermigr(self, energies: npt.ArrayLike) -> FloatArray:
+        return self.fermi_golden_rule_weights(energies)
+
+    def complex_polarization_weights(self, energies: npt.ArrayLike) -> ComplexArray:
+        sample_energies = normalize_complex_energy_samples(energies)
+        local_weights = _complex_polarization_weights_on_local_mesh(
+            self.mesh,
+            self.occupied_tetra,
+            self.target_tetra,
+            sample_energies,
+        )
+        output_flat = interpolate_local_values(self.mesh, local_weights)
+        return _unflatten_energy_pair_band_last(output_flat, self.mesh.weight_grid_shape)
+
+    def polcmplx(self, energies: npt.ArrayLike) -> ComplexArray:
+        return self.complex_polarization_weights(energies)
+
+
+def prepare_response_problem(
+    reciprocal_vectors: npt.ArrayLike,
+    occupied_eigenvalues: npt.ArrayLike,
+    target_eigenvalues: npt.ArrayLike,
+    *,
+    weight_grid_shape: tuple[int, int, int] | None = None,
+    method: int | TetraMethod = "optimized",
+) -> PreparedResponseProblem:
+    """Precompute shared response setup for repeated sweeps on a fixed band pair."""
+    occupied_flat, target_flat, energy_grid_shape = _normalize_eigenvalue_pair(occupied_eigenvalues, target_eigenvalues)
+    mesh = cached_integration_mesh(
+        reciprocal_vectors,
+        energy_grid_shape,
+        weight_grid_shape=weight_grid_shape,
+        method=method,
+    )
+    occupied_tetra = interpolated_tetrahedron_energies(mesh, occupied_flat)
+    target_tetra = interpolated_tetrahedron_energies(mesh, target_flat)
+    return PreparedResponseProblem(mesh=mesh, occupied_tetra=occupied_tetra, target_tetra=target_tetra)
 
 
 def double_step_weights(
@@ -32,18 +116,14 @@ def double_step_weights(
     weight_grid_shape: tuple[int, int, int] | None = None,
     method: int | TetraMethod = "optimized",
 ) -> FloatArray:
-    occupied_flat, target_flat, energy_grid_shape = _normalize_eigenvalue_pair(occupied_eigenvalues, target_eigenvalues)
-    mesh = build_integration_mesh(
+    problem = prepare_response_problem(
         reciprocal_vectors,
-        energy_grid_shape,
+        occupied_eigenvalues,
+        target_eigenvalues,
         weight_grid_shape=weight_grid_shape,
         method=method,
     )
-    occupied_tetra = interpolated_tetrahedron_energies(mesh, occupied_flat)
-    target_tetra = interpolated_tetrahedron_energies(mesh, target_flat)
-    local_weights = _double_step_weights_on_local_mesh(mesh, occupied_tetra, target_tetra)
-    output_flat = interpolate_local_values(mesh, local_weights)
-    return _unflatten_pair_band_last(output_flat, mesh.weight_grid_shape)
+    return problem.double_step_weights()
 
 
 def dblstep(
@@ -71,18 +151,14 @@ def double_delta_weights(
     weight_grid_shape: tuple[int, int, int] | None = None,
     method: int | TetraMethod = "optimized",
 ) -> FloatArray:
-    source_flat, target_flat, energy_grid_shape = _normalize_eigenvalue_pair(source_eigenvalues, target_eigenvalues)
-    mesh = build_integration_mesh(
+    problem = prepare_response_problem(
         reciprocal_vectors,
-        energy_grid_shape,
+        source_eigenvalues,
+        target_eigenvalues,
         weight_grid_shape=weight_grid_shape,
         method=method,
     )
-    source_tetra = interpolated_tetrahedron_energies(mesh, source_flat)
-    target_tetra = interpolated_tetrahedron_energies(mesh, target_flat)
-    local_weights = _double_delta_weights_on_local_mesh(mesh, source_tetra, target_tetra)
-    output_flat = interpolate_local_values(mesh, local_weights)
-    return _unflatten_pair_band_last(output_flat, mesh.weight_grid_shape)
+    return problem.double_delta_weights()
 
 
 def dbldelta(
@@ -111,19 +187,14 @@ def fermi_golden_rule_weights(
     weight_grid_shape: tuple[int, int, int] | None = None,
     method: int | TetraMethod = "optimized",
 ) -> FloatArray:
-    occupied_flat, target_flat, energy_grid_shape = _normalize_eigenvalue_pair(occupied_eigenvalues, target_eigenvalues)
-    sample_energies = normalize_energy_samples(energies)
-    mesh = build_integration_mesh(
+    problem = prepare_response_problem(
         reciprocal_vectors,
-        energy_grid_shape,
+        occupied_eigenvalues,
+        target_eigenvalues,
         weight_grid_shape=weight_grid_shape,
         method=method,
     )
-    occupied_tetra = interpolated_tetrahedron_energies(mesh, occupied_flat)
-    target_tetra = interpolated_tetrahedron_energies(mesh, target_flat)
-    local_weights = _fermi_golden_rule_weights_on_local_mesh(mesh, occupied_tetra, target_tetra, sample_energies)
-    output_flat = interpolate_local_values(mesh, local_weights)
-    return _unflatten_energy_pair_band_last(output_flat, mesh.weight_grid_shape)
+    return problem.fermi_golden_rule_weights(energies)
 
 
 def fermigr(
@@ -154,19 +225,14 @@ def complex_polarization_weights(
     weight_grid_shape: tuple[int, int, int] | None = None,
     method: int | TetraMethod = "optimized",
 ) -> ComplexArray:
-    occupied_flat, target_flat, energy_grid_shape = _normalize_eigenvalue_pair(occupied_eigenvalues, target_eigenvalues)
-    sample_energies = normalize_complex_energy_samples(energies)
-    mesh = build_integration_mesh(
+    problem = prepare_response_problem(
         reciprocal_vectors,
-        energy_grid_shape,
+        occupied_eigenvalues,
+        target_eigenvalues,
         weight_grid_shape=weight_grid_shape,
         method=method,
     )
-    occupied_tetra = interpolated_tetrahedron_energies(mesh, occupied_flat)
-    target_tetra = interpolated_tetrahedron_energies(mesh, target_flat)
-    local_weights = _complex_polarization_weights_on_local_mesh(mesh, occupied_tetra, target_tetra, sample_energies)
-    output_flat = interpolate_local_values(mesh, local_weights)
-    return _unflatten_energy_pair_band_last(output_flat, mesh.weight_grid_shape)
+    return problem.complex_polarization_weights(energies)
 
 
 def polcmplx(
@@ -196,18 +262,14 @@ def static_polarization_weights(
     weight_grid_shape: tuple[int, int, int] | None = None,
     method: int | TetraMethod = "optimized",
 ) -> FloatArray:
-    occupied_flat, target_flat, energy_grid_shape = _normalize_eigenvalue_pair(occupied_eigenvalues, target_eigenvalues)
-    mesh = build_integration_mesh(
+    problem = prepare_response_problem(
         reciprocal_vectors,
-        energy_grid_shape,
+        occupied_eigenvalues,
+        target_eigenvalues,
         weight_grid_shape=weight_grid_shape,
         method=method,
     )
-    occupied_tetra = interpolated_tetrahedron_energies(mesh, occupied_flat)
-    target_tetra = interpolated_tetrahedron_energies(mesh, target_flat)
-    local_weights = _static_polarization_weights_on_local_mesh(mesh, occupied_tetra, target_tetra)
-    output_flat = interpolate_local_values(mesh, local_weights)
-    return _unflatten_pair_band_last(output_flat, mesh.weight_grid_shape)
+    return problem.static_polarization_weights()
 
 
 def polstat(

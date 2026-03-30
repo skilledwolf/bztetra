@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import Literal
 
 import numpy as np
@@ -140,23 +141,74 @@ def build_integration_mesh(
     *,
     method: int | TetraMethod = "optimized",
 ) -> IntegrationMesh:
+    basis = _normalize_reciprocal_vectors(reciprocal_vectors)
     energy_grid = _normalize_grid_shape(energy_grid_shape)
     weight_grid = energy_grid if weight_grid_shape is None else _normalize_grid_shape(weight_grid_shape)
-    interpolation_required = energy_grid != weight_grid
+    return _build_integration_mesh_from_normalized_inputs(
+        basis,
+        energy_grid,
+        weight_grid,
+        _normalize_method(method),
+    )
 
-    offsets = tetrahedron_offsets(reciprocal_vectors, energy_grid)
-    global_indices = _build_global_point_indices(offsets, energy_grid)
+
+def cached_integration_mesh(
+    reciprocal_vectors: npt.ArrayLike,
+    energy_grid_shape: GridShape | tuple[int, int, int],
+    weight_grid_shape: GridShape | tuple[int, int, int] | None = None,
+    *,
+    method: int | TetraMethod = "optimized",
+) -> IntegrationMesh:
+    """Return a cached mesh object for internal read-only kernel setup reuse."""
+    basis = _normalize_reciprocal_vectors(reciprocal_vectors)
+    energy_grid = _normalize_grid_shape(energy_grid_shape)
+    weight_grid = energy_grid if weight_grid_shape is None else _normalize_grid_shape(weight_grid_shape)
+    basis_key = tuple(float(value) for value in basis.reshape(-1))
+    return _cached_integration_mesh(
+        _normalize_method(method),
+        energy_grid,
+        weight_grid,
+        basis_key,
+    )
+
+
+@lru_cache(maxsize=32)
+def _cached_integration_mesh(
+    method: int,
+    energy_grid_shape: GridShape,
+    weight_grid_shape: GridShape,
+    reciprocal_vector_key: tuple[float, ...],
+) -> IntegrationMesh:
+    basis = np.asarray(reciprocal_vector_key, dtype=np.float64).reshape(3, 3)
+    return _build_integration_mesh_from_normalized_inputs(
+        basis,
+        energy_grid_shape,
+        weight_grid_shape,
+        method,
+    )
+
+
+def _build_integration_mesh_from_normalized_inputs(
+    reciprocal_vectors: FloatArray,
+    energy_grid_shape: GridShape,
+    weight_grid_shape: GridShape,
+    method: int,
+) -> IntegrationMesh:
+    interpolation_required = energy_grid_shape != weight_grid_shape
+
+    offsets = tetrahedron_offsets(reciprocal_vectors, energy_grid_shape)
+    global_indices = _build_global_point_indices(offsets, energy_grid_shape)
 
     fractional_kpoints: FloatArray | None = None
     if interpolation_required:
-        local_indices, fractional_kpoints = _localize_point_indices(global_indices, energy_grid)
+        local_indices, fractional_kpoints = _localize_point_indices(global_indices, energy_grid_shape)
     else:
         local_indices = global_indices.copy()
 
     return IntegrationMesh(
-        method=_normalize_method(method),
-        energy_grid_shape=energy_grid,
-        weight_grid_shape=weight_grid,
+        method=method,
+        energy_grid_shape=energy_grid_shape,
+        weight_grid_shape=weight_grid_shape,
         interpolation_required=interpolation_required,
         tetrahedron_weight_matrix=tetrahedron_weight_matrix(method),
         tetrahedra_offsets=offsets,

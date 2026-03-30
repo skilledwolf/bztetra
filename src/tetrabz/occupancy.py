@@ -14,7 +14,7 @@ from ._grids import interpolated_tetrahedron_energies
 from ._grids import normalize_eigenvalues
 from .geometry import IntegrationMesh
 from .geometry import TetraMethod
-from .geometry import build_integration_mesh
+from .geometry import cached_integration_mesh
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,7 +33,7 @@ def occupation_weights(
     fermi_energy: float = 0.0,
 ) -> FloatArray:
     eig_flat, energy_grid_shape = normalize_eigenvalues(eigenvalues)
-    mesh = build_integration_mesh(
+    mesh = cached_integration_mesh(
         reciprocal_vectors,
         energy_grid_shape,
         weight_grid_shape=weight_grid_shape,
@@ -73,7 +73,7 @@ def find_fermi_energy(
     max_iterations: int = 300,
 ) -> FermiSearchResult:
     eig_flat, energy_grid_shape = normalize_eigenvalues(eigenvalues)
-    mesh = build_integration_mesh(
+    mesh = cached_integration_mesh(
         reciprocal_vectors,
         energy_grid_shape,
         weight_grid_shape=weight_grid_shape,

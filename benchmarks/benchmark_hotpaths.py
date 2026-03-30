@@ -13,6 +13,7 @@ from tetrabz import intdos
 from tetrabz import occ
 from tetrabz import polcmplx
 from tetrabz import polstat
+from tetrabz import prepare_response_problem
 
 
 FERMI_ENERGY = 0.5
@@ -27,6 +28,13 @@ def main() -> None:
     reciprocal_vectors = np.diag([3.0, 3.0, 3.0]).astype(np.float64)
     scalar_bands = _free_electron_bands(reciprocal_vectors, grid_shape)
     response_occupied_bands, response_target_bands = _free_electron_response_bands(reciprocal_vectors, grid_shape)
+    prepared_response = prepare_response_problem(
+        reciprocal_vectors,
+        response_occupied_bands,
+        response_target_bands,
+        weight_grid_shape=grid_shape,
+        method=args.method,
+    )
     occupied_bands, target_bands = _lindhard_bands(reciprocal_vectors, grid_shape, q_value=args.q_value)
 
     tasks = [
@@ -111,6 +119,14 @@ def main() -> None:
                 weight_grid_shape=grid_shape,
                 method=args.method,
             ),
+        ),
+        (
+            "fermigr_prepared",
+            lambda: prepared_response.fermigr(sample_energies),
+        ),
+        (
+            "polcmplx_prepared",
+            lambda: prepared_response.polcmplx(complex_sample_energies),
         ),
     ]
 

@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import numpy as np
 import numpy.typing as npt
+from numba import njit
 
 from .geometry import IntegrationMesh
 from .geometry import trilinear_interpolation_indices
 
 
+IntArray = npt.NDArray[np.int64]
 FloatArray = npt.NDArray[np.float64]
 ComplexArray = npt.NDArray[np.complex128]
 
@@ -43,16 +45,11 @@ def normalize_complex_energy_samples(energies: npt.ArrayLike) -> ComplexArray:
 
 
 def interpolated_tetrahedron_energies(mesh: IntegrationMesh, eig_flat: FloatArray) -> FloatArray:
-    tetrahedron_count = mesh.tetrahedron_count
-    band_count = eig_flat.shape[1]
-    tetra_band_energies = np.empty((tetrahedron_count, 4, band_count), dtype=np.float64)
-
-    for tetrahedron_index in range(tetrahedron_count):
-        tetra_band_energies[tetrahedron_index] = (
-            mesh.tetrahedron_weight_matrix @ eig_flat[mesh.global_point_indices[tetrahedron_index]]
-        )
-
-    return tetra_band_energies
+    return _interpolated_tetrahedron_energies_numba(
+        mesh.tetrahedron_weight_matrix,
+        mesh.global_point_indices,
+        eig_flat,
+    )
 
 
 def interpolate_local_values(mesh: IntegrationMesh, local_values: npt.NDArray[np.generic]) -> npt.NDArray[np.generic]:
@@ -79,3 +76,27 @@ def interpolate_local_values(mesh: IntegrationMesh, local_values: npt.NDArray[np
                 weights * flattened_features[local_index, feature_index],
             )
     return output_flat.reshape((output_flat.shape[0],) + local_values.shape[1:])
+
+
+@njit(cache=True)
+def _interpolated_tetrahedron_energies_numba(
+    tetrahedron_weight_matrix: FloatArray,
+    global_point_indices: IntArray,
+    eig_flat: FloatArray,
+) -> FloatArray:
+    tetrahedron_count = global_point_indices.shape[0]
+    band_count = eig_flat.shape[1]
+    tetra_band_energies = np.empty((tetrahedron_count, 4, band_count), dtype=np.float64)
+
+    for tetrahedron_index in range(tetrahedron_count):
+        for vertex_index in range(4):
+            for band_index in range(band_count):
+                total = 0.0
+                for point_index in range(20):
+                    total += (
+                        tetrahedron_weight_matrix[vertex_index, point_index]
+                        * eig_flat[global_point_indices[tetrahedron_index, point_index], band_index]
+                    )
+                tetra_band_energies[tetrahedron_index, vertex_index, band_index] = total
+
+    return tetra_band_energies

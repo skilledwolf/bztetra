@@ -12,6 +12,8 @@ from .response import double_step_weights
 from .response import complex_polarization_weights
 from .response import fermi_golden_rule_weights
 from .response import fermigr
+from .response import prepare_response_problem
+from .response import PreparedResponseProblem
 from .response import polstat
 from .response import polcmplx
 from .response import static_polarization_weights
@@ -48,6 +50,8 @@ __all__ = [
     "intdos",
     "occ",
     "occupation_weights",
+    "PreparedResponseProblem",
+    "prepare_response_problem",
     "polcmplx",
     "polstat",
     "simplex_affine_coefficients",

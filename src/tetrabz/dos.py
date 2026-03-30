@@ -14,7 +14,7 @@ from ._grids import normalize_eigenvalues
 from ._grids import normalize_energy_samples
 from .geometry import IntegrationMesh
 from .geometry import TetraMethod
-from .geometry import build_integration_mesh
+from .geometry import cached_integration_mesh
 
 
 def density_of_states_weights(
@@ -27,7 +27,7 @@ def density_of_states_weights(
 ) -> FloatArray:
     eig_flat, energy_grid_shape = normalize_eigenvalues(eigenvalues)
     sample_energies = normalize_energy_samples(energies)
-    mesh = build_integration_mesh(
+    mesh = cached_integration_mesh(
         reciprocal_vectors,
         energy_grid_shape,
         weight_grid_shape=weight_grid_shape,
@@ -66,7 +66,7 @@ def integrated_density_of_states_weights(
 ) -> FloatArray:
     eig_flat, energy_grid_shape = normalize_eigenvalues(eigenvalues)
     sample_energies = normalize_energy_samples(energies)
-    mesh = build_integration_mesh(
+    mesh = cached_integration_mesh(
         reciprocal_vectors,
         energy_grid_shape,
         weight_grid_shape=weight_grid_shape,

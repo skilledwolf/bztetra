@@ -1,6 +1,7 @@
 import numpy as np
 
 from tetrabz.geometry import build_integration_mesh
+from tetrabz.geometry import cached_integration_mesh
 from tetrabz.geometry import tetrahedron_offsets
 from tetrabz.geometry import tetrahedron_weight_matrix
 from tetrabz.geometry import trilinear_interpolation_indices
@@ -80,6 +81,36 @@ def test_build_integration_mesh_with_interpolation_tracks_unique_points() -> Non
     actual = np.array(sorted(map(tuple, mesh.fractional_kpoints.tolist())))
     expected = np.array(sorted(map(tuple, expected_kpoints.tolist())))
     np.testing.assert_allclose(actual, expected)
+
+
+def test_cached_integration_mesh_matches_direct_builder() -> None:
+    reciprocal_vectors = np.diag([3.0, 3.0, 3.0]).astype(np.float64)
+    direct = build_integration_mesh(
+        reciprocal_vectors,
+        (4, 4, 4),
+        weight_grid_shape=(8, 8, 8),
+        method="optimized",
+    )
+    cached = cached_integration_mesh(
+        reciprocal_vectors,
+        (4, 4, 4),
+        weight_grid_shape=(8, 8, 8),
+        method="optimized",
+    )
+
+    assert direct.method == cached.method
+    assert direct.energy_grid_shape == cached.energy_grid_shape
+    assert direct.weight_grid_shape == cached.weight_grid_shape
+    assert direct.interpolation_required == cached.interpolation_required
+    assert direct.local_point_count == cached.local_point_count
+    assert direct.tetrahedron_count == cached.tetrahedron_count
+    np.testing.assert_array_equal(direct.tetrahedron_weight_matrix, cached.tetrahedron_weight_matrix)
+    np.testing.assert_array_equal(direct.tetrahedra_offsets, cached.tetrahedra_offsets)
+    np.testing.assert_array_equal(direct.global_point_indices, cached.global_point_indices)
+    np.testing.assert_array_equal(direct.local_point_indices, cached.local_point_indices)
+    assert direct.fractional_kpoints is not None
+    assert cached.fractional_kpoints is not None
+    np.testing.assert_allclose(direct.fractional_kpoints, cached.fractional_kpoints)
 
 
 def test_trilinear_interpolation_indices_wrap_periodically() -> None:
