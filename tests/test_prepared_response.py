@@ -7,6 +7,9 @@ from bztetra import fermi_golden_rule_weights
 from bztetra import complex_frequency_polarization_weights
 from bztetra import static_polarization_weights
 from bztetra import prepare_response_evaluator
+from bztetra._grids import interpolate_local_values
+from bztetra._response_common import _unflatten_pair_band_last
+from bztetra._response_static import _static_polarization_weights_on_local_mesh_numba
 from tests.legacy_cases import fermi_golden_rule_energy_points
 from tests.legacy_cases import legacy_free_electron_response_case
 from tests.legacy_cases import complex_frequency_polarization_energy_points
@@ -129,6 +132,32 @@ def test_prepared_response_evaluator_matches_interpolated_frequency_kernels() ->
             method="optimized",
         ),
     )
+
+
+def test_prepared_response_evaluator_multiband_static_pair_parallel_matches_scalar_kernel() -> None:
+    bvec, occupied, target = _synthetic_multiband_response_case((4, 4, 4), 5)
+
+    problem = prepare_response_evaluator(
+        bvec,
+        occupied,
+        target,
+        weight_grid_shape=(4, 4, 4),
+        method="optimized",
+    )
+
+    pair_parallel = problem.static_polarization_weights()
+    scalar_local = _static_polarization_weights_on_local_mesh_numba(
+        problem.mesh.local_point_indices,
+        problem.mesh.tetrahedron_weight_matrix,
+        problem.occupied_tetra,
+        problem.target_tetra,
+        problem.mesh.local_point_count,
+        6 * int(np.prod(problem.mesh.energy_grid_shape, dtype=np.int64)),
+    )
+    scalar_flat = interpolate_local_values(problem.mesh, scalar_local)
+    scalar = _unflatten_pair_band_last(scalar_flat, problem.mesh.weight_grid_shape)
+
+    np.testing.assert_allclose(pair_parallel, scalar, rtol=1.0e-12, atol=1.0e-12)
 
 
 def test_prepared_response_evaluator_matches_multiband_frequency_response_kernels() -> None:
