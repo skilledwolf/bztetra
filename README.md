@@ -127,4 +127,11 @@ pip install -e '.[dev]'
 python -m pytest -q
 ```
 
+For local docs work:
+
+```bash
+pip install -e '.[dev,docs]'
+mkdocs serve
+```
+
 Package versions are derived from git tags at build and install time.

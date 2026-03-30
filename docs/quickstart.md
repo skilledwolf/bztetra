@@ -90,8 +90,5 @@ imag_freq = problem.complex_frequency_polarization_weights(1j * np.linspace(0.2,
 
 ## Useful Examples
 
-- [examples/plot_tight_binding_dos.py](../examples/plot_tight_binding_dos.py)
-- [examples/review_occupancy.py](../examples/review_occupancy.py)
-- [examples/plot_lindhard.py](../examples/plot_lindhard.py)
-- [examples/plot_phase_space_and_nesting.py](../examples/plot_phase_space_and_nesting.py)
-- [examples/plot_complex_frequency_polarization.py](../examples/plot_complex_frequency_polarization.py)
+See [Examples](examples.md) for the repository scripts to run next, including
+the recommended DOS, occupation, and Lindhard entry points.
