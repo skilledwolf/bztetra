@@ -18,6 +18,7 @@ except ImportError as exc:  # pragma: no cover - runtime dependency check
 
 DEFAULT_OUTPUT = Path("build/review_plots/polcmplx_matsubara.png")
 GRID_SHAPE = (16, 16, 16)
+# Start above zero: the full tensor includes intraband channels with a pole at z = 0.
 MATSUBARA_FREQUENCIES = np.linspace(0.1, 2.5, 81, dtype=np.float64)
 FERMI_ENERGY = 0.5
 

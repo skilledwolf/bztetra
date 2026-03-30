@@ -67,7 +67,7 @@ and write a figure under `build/review_plots/`:
 ```
 
 For a physically meaningful complex-frequency review plot, reproduce the
-free-electron interband polarization on the Matsubara axis with exact
+free-electron interband polarization on the positive Matsubara axis with exact
 comparison channels and write a figure under `build/review_plots/`:
 
 ```bash
