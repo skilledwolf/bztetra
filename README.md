@@ -12,9 +12,9 @@ The implementation strategy is:
 
 - NumPy for array orchestration and test/reference helpers.
 - Numba for hot scalar and tensor kernels once the numerical contracts are
-  locked down. The occupation, DOS, integrated-DOS, `dblstep`, and `dbldelta`
-  paths are now compiled; `polstat` and the frequency-dependent response
-  kernels are next.
+  locked down. The occupation, DOS, integrated-DOS, `dblstep`, `dbldelta`, and
+  `polstat` paths are now compiled; the next kernel family is the
+  frequency-dependent response layer (`fermigr`, `polcmplx`).
 - SciPy only where it materially helps validation, reference calculations, or
   tooling; it is not a planned dependency for the core runtime path right now.
 
@@ -71,4 +71,11 @@ For a quick local timing baseline on the current hot paths (`occ`, `dos`,
 
 ```bash
 PYTHONPATH=src .venv/bin/python benchmarks/benchmark_hotpaths.py
+```
+
+For a more focused `polstat` timing sweep that isolates the multiband free-
+electron case and the Lindhard small-`q` / `2k_F` branches, run:
+
+```bash
+PYTHONPATH=src .venv/bin/python benchmarks/benchmark_polstat.py --grid 16 --q-values 0.125 2.0
 ```

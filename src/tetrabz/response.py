@@ -172,49 +172,15 @@ def _static_polarization_weights_on_local_mesh(
     occupied_tetra: FloatArray,
     target_tetra: FloatArray,
 ) -> FloatArray:
-    occupied_band_count = occupied_tetra.shape[2]
-    target_band_count = target_tetra.shape[2]
-    local_weights = np.zeros((mesh.local_point_count, target_band_count, occupied_band_count), dtype=np.float64)
-
-    for tetrahedron_index in range(mesh.tetrahedron_count):
-        local_points = mesh.local_point_indices[tetrahedron_index]
-        for occupied_band_index in range(occupied_band_count):
-            outer_weights = np.zeros((target_band_count, 4), dtype=np.float64)
-            sorted_order = np.argsort(occupied_tetra[tetrahedron_index, :, occupied_band_index])
-            sorted_occupied = occupied_tetra[tetrahedron_index, sorted_order, occupied_band_index]
-            sorted_target = target_tetra[tetrahedron_index, sorted_order, :]
-
-            if sorted_occupied[0] <= 0.0 < sorted_occupied[1]:
-                _accumulate_small_tetra_polstat_outer(outer_weights, "a1", sorted_order, sorted_occupied, sorted_target)
-            elif sorted_occupied[1] <= 0.0 < sorted_occupied[2]:
-                for kind in ("b1", "b2", "b3"):
-                    _accumulate_small_tetra_polstat_outer(
-                        outer_weights,
-                        kind,
-                        sorted_order,
-                        sorted_occupied,
-                        sorted_target,
-                    )
-            elif sorted_occupied[2] <= 0.0 < sorted_occupied[3]:
-                for kind in ("c1", "c2", "c3"):
-                    _accumulate_small_tetra_polstat_outer(
-                        outer_weights,
-                        kind,
-                        sorted_order,
-                        sorted_occupied,
-                        sorted_target,
-                    )
-            elif sorted_occupied[3] <= 0.0:
-                outer_weights += _polstat_secondary_weights(
-                    occupied_tetra[tetrahedron_index, :, occupied_band_index],
-                    target_tetra[tetrahedron_index],
-                )
-
-            point_weights = outer_weights @ mesh.tetrahedron_weight_matrix
-            np.add.at(local_weights[:, :, occupied_band_index], local_points, point_weights.T)
-
-    local_weights /= float(6 * np.prod(mesh.energy_grid_shape, dtype=np.int64))
-    return local_weights
+    normalization = 6 * int(np.prod(mesh.energy_grid_shape, dtype=np.int64))
+    return _static_polarization_weights_on_local_mesh_numba(
+        mesh.local_point_indices,
+        mesh.tetrahedron_weight_matrix,
+        occupied_tetra,
+        target_tetra,
+        mesh.local_point_count,
+        normalization,
+    )
 
 
 def _accumulate_small_tetra_response(
@@ -1183,6 +1149,676 @@ def _fill_triangle_affine3(energies: FloatArray, affine: FloatArray) -> None:
         for row in range(3):
             if row != column:
                 affine[row, column] = -energy / (energies[row] - energy)
+
+
+@njit(cache=True)
+def _static_polarization_weights_on_local_mesh_numba(
+    local_point_indices: npt.NDArray[np.int64],
+    tetrahedron_weight_matrix: FloatArray,
+    occupied_tetra: FloatArray,
+    target_tetra: FloatArray,
+    local_point_count: int,
+    normalization: int,
+) -> FloatArray:
+    tetrahedron_count = occupied_tetra.shape[0]
+    occupied_band_count = occupied_tetra.shape[2]
+    target_band_count = target_tetra.shape[2]
+    local_weights = np.zeros((local_point_count, target_band_count, occupied_band_count), dtype=np.float64)
+
+    sorted_order = np.empty(4, dtype=np.int64)
+    sorted_occupied = np.empty(4, dtype=np.float64)
+    sorted_target = np.empty((4, target_band_count), dtype=np.float64)
+    outer_weights = np.empty((target_band_count, 4), dtype=np.float64)
+    point_weights = np.empty(20, dtype=np.float64)
+
+    outer_strict = np.empty(4, dtype=np.float64)
+    outer_affine = np.empty((4, 4), dtype=np.float64)
+    outer_coefficients = np.empty((4, 4), dtype=np.float64)
+    transformed_occupied = np.empty(4, dtype=np.float64)
+    transformed_target = np.empty((4, target_band_count), dtype=np.float64)
+
+    secondary_weights = np.empty((target_band_count, 4), dtype=np.float64)
+    step_energies = np.empty(4, dtype=np.float64)
+    secondary_sorted_order = np.empty(4, dtype=np.int64)
+    secondary_sorted_step_energies = np.empty(4, dtype=np.float64)
+    secondary_sorted_target = np.empty(4, dtype=np.float64)
+    secondary_sorted_occupied = np.empty(4, dtype=np.float64)
+    secondary_sorted_weights = np.empty(4, dtype=np.float64)
+    inner_strict = np.empty(4, dtype=np.float64)
+    inner_affine = np.empty((4, 4), dtype=np.float64)
+    inner_coefficients = np.empty((4, 4), dtype=np.float64)
+    energy_differences = np.empty(4, dtype=np.float64)
+    log_weights = np.empty(4, dtype=np.float64)
+    log_sorted_order = np.empty(4, dtype=np.int64)
+    log_sorted_differences = np.empty(4, dtype=np.float64)
+    logarithms = np.empty(4, dtype=np.float64)
+    log_sorted_weights = np.empty(4, dtype=np.float64)
+
+    for tetrahedron_index in range(tetrahedron_count):
+        for occupied_band_index in range(occupied_band_count):
+            sort4(
+                occupied_tetra[tetrahedron_index, :, occupied_band_index],
+                sorted_order,
+                sorted_occupied,
+            )
+            for vertex_index in range(4):
+                source_vertex = sorted_order[vertex_index]
+                for target_band_index in range(target_band_count):
+                    sorted_target[vertex_index, target_band_index] = target_tetra[
+                        tetrahedron_index,
+                        source_vertex,
+                        target_band_index,
+                    ]
+
+            outer_weights[:, :] = 0.0
+            if sorted_occupied[0] <= 0.0 < sorted_occupied[1]:
+                _accumulate_small_tetra_polstat_outer_numba(
+                    outer_weights,
+                    0,
+                    sorted_order,
+                    sorted_occupied,
+                    sorted_target,
+                    target_band_count,
+                    outer_strict,
+                    outer_affine,
+                    outer_coefficients,
+                    transformed_occupied,
+                    transformed_target,
+                    secondary_weights,
+                    step_energies,
+                    secondary_sorted_order,
+                    secondary_sorted_step_energies,
+                    secondary_sorted_target,
+                    secondary_sorted_occupied,
+                    secondary_sorted_weights,
+                    inner_strict,
+                    inner_affine,
+                    inner_coefficients,
+                    energy_differences,
+                    log_weights,
+                    log_sorted_order,
+                    log_sorted_differences,
+                    logarithms,
+                    log_sorted_weights,
+                )
+            elif sorted_occupied[1] <= 0.0 < sorted_occupied[2]:
+                for case_id in (1, 2, 3):
+                    _accumulate_small_tetra_polstat_outer_numba(
+                        outer_weights,
+                        case_id,
+                        sorted_order,
+                        sorted_occupied,
+                        sorted_target,
+                        target_band_count,
+                        outer_strict,
+                        outer_affine,
+                        outer_coefficients,
+                        transformed_occupied,
+                        transformed_target,
+                        secondary_weights,
+                        step_energies,
+                        secondary_sorted_order,
+                        secondary_sorted_step_energies,
+                        secondary_sorted_target,
+                        secondary_sorted_occupied,
+                        secondary_sorted_weights,
+                        inner_strict,
+                        inner_affine,
+                        inner_coefficients,
+                        energy_differences,
+                        log_weights,
+                        log_sorted_order,
+                        log_sorted_differences,
+                        logarithms,
+                        log_sorted_weights,
+                    )
+            elif sorted_occupied[2] <= 0.0 < sorted_occupied[3]:
+                for case_id in (4, 5, 6):
+                    _accumulate_small_tetra_polstat_outer_numba(
+                        outer_weights,
+                        case_id,
+                        sorted_order,
+                        sorted_occupied,
+                        sorted_target,
+                        target_band_count,
+                        outer_strict,
+                        outer_affine,
+                        outer_coefficients,
+                        transformed_occupied,
+                        transformed_target,
+                        secondary_weights,
+                        step_energies,
+                        secondary_sorted_order,
+                        secondary_sorted_step_energies,
+                        secondary_sorted_target,
+                        secondary_sorted_occupied,
+                        secondary_sorted_weights,
+                        inner_strict,
+                        inner_affine,
+                        inner_coefficients,
+                        energy_differences,
+                        log_weights,
+                        log_sorted_order,
+                        log_sorted_differences,
+                        logarithms,
+                        log_sorted_weights,
+                    )
+            elif sorted_occupied[3] <= 0.0:
+                _polstat_secondary_weights_numba(
+                    occupied_tetra[tetrahedron_index, :, occupied_band_index],
+                    target_tetra[tetrahedron_index],
+                    secondary_weights,
+                    step_energies,
+                    secondary_sorted_order,
+                    secondary_sorted_step_energies,
+                    secondary_sorted_target,
+                    secondary_sorted_occupied,
+                    secondary_sorted_weights,
+                    inner_strict,
+                    inner_affine,
+                    inner_coefficients,
+                    energy_differences,
+                    log_weights,
+                    log_sorted_order,
+                    log_sorted_differences,
+                    logarithms,
+                    log_sorted_weights,
+                )
+                for target_band_index in range(target_band_count):
+                    for vertex_index in range(4):
+                        outer_weights[target_band_index, vertex_index] += secondary_weights[target_band_index, vertex_index]
+
+            for target_band_index in range(target_band_count):
+                for point_index in range(20):
+                    total = 0.0
+                    for vertex_index in range(4):
+                        total += outer_weights[target_band_index, vertex_index] * tetrahedron_weight_matrix[vertex_index, point_index]
+                    point_weights[point_index] = total
+                for point_index in range(20):
+                    local_weights[
+                        local_point_indices[tetrahedron_index, point_index],
+                        target_band_index,
+                        occupied_band_index,
+                    ] += point_weights[point_index]
+
+    local_weights /= float(normalization)
+    return local_weights
+
+
+@njit(cache=True)
+def _accumulate_small_tetra_polstat_outer_numba(
+    outer_weights: FloatArray,
+    case_id: int,
+    sorted_order: npt.NDArray[np.int64],
+    sorted_occupied: FloatArray,
+    sorted_target: FloatArray,
+    target_band_count: int,
+    outer_strict: FloatArray,
+    outer_affine: FloatArray,
+    outer_coefficients: FloatArray,
+    transformed_occupied: FloatArray,
+    transformed_target: FloatArray,
+    secondary_weights: FloatArray,
+    step_energies: FloatArray,
+    secondary_sorted_order: npt.NDArray[np.int64],
+    secondary_sorted_step_energies: FloatArray,
+    secondary_sorted_target: FloatArray,
+    secondary_sorted_occupied: FloatArray,
+    secondary_sorted_weights: FloatArray,
+    inner_strict: FloatArray,
+    inner_affine: FloatArray,
+    inner_coefficients: FloatArray,
+    energy_differences: FloatArray,
+    log_weights: FloatArray,
+    log_sorted_order: npt.NDArray[np.int64],
+    log_sorted_differences: FloatArray,
+    logarithms: FloatArray,
+    log_sorted_weights: FloatArray,
+) -> None:
+    volume_factor = small_tetra_volume_and_coefficients(
+        case_id,
+        sorted_occupied,
+        outer_strict,
+        outer_affine,
+        outer_coefficients,
+    )
+    if volume_factor <= 1.0e-10:
+        return
+
+    for row_index in range(4):
+        total = 0.0
+        for column_index in range(4):
+            total += outer_coefficients[row_index, column_index] * sorted_occupied[column_index]
+        transformed_occupied[row_index] = total
+
+    for row_index in range(4):
+        for target_band_index in range(target_band_count):
+            total = 0.0
+            for column_index in range(4):
+                total += outer_coefficients[row_index, column_index] * sorted_target[column_index, target_band_index]
+            transformed_target[row_index, target_band_index] = total
+
+    _polstat_secondary_weights_numba(
+        transformed_occupied,
+        transformed_target,
+        secondary_weights,
+        step_energies,
+        secondary_sorted_order,
+        secondary_sorted_step_energies,
+        secondary_sorted_target,
+        secondary_sorted_occupied,
+        secondary_sorted_weights,
+        inner_strict,
+        inner_affine,
+        inner_coefficients,
+        energy_differences,
+        log_weights,
+        log_sorted_order,
+        log_sorted_differences,
+        logarithms,
+        log_sorted_weights,
+    )
+
+    for target_band_index in range(target_band_count):
+        for column_index in range(4):
+            total = 0.0
+            for row_index in range(4):
+                total += secondary_weights[target_band_index, row_index] * outer_coefficients[row_index, column_index]
+            outer_weights[target_band_index, sorted_order[column_index]] += volume_factor * total
+
+
+@njit(cache=True)
+def _polstat_secondary_weights_numba(
+    occupied_vertices: FloatArray,
+    target_vertices: FloatArray,
+    weights: FloatArray,
+    step_energies: FloatArray,
+    sorted_order: npt.NDArray[np.int64],
+    sorted_step_energies: FloatArray,
+    sorted_target: FloatArray,
+    sorted_occupied: FloatArray,
+    sorted_weights: FloatArray,
+    strict_energies: FloatArray,
+    affine: FloatArray,
+    coefficients: FloatArray,
+    energy_differences: FloatArray,
+    log_weights: FloatArray,
+    log_sorted_order: npt.NDArray[np.int64],
+    log_sorted_differences: FloatArray,
+    logarithms: FloatArray,
+    log_sorted_weights: FloatArray,
+) -> None:
+    target_band_count = target_vertices.shape[1]
+    weights[:, :] = 0.0
+
+    for target_band_index in range(target_band_count):
+        for vertex_index in range(4):
+            step_energies[vertex_index] = -target_vertices[vertex_index, target_band_index]
+        sort4(step_energies, sorted_order, sorted_step_energies)
+        for vertex_index in range(4):
+            source_vertex = sorted_order[vertex_index]
+            sorted_target[vertex_index] = target_vertices[source_vertex, target_band_index]
+            sorted_occupied[vertex_index] = occupied_vertices[source_vertex]
+        sorted_weights[:] = 0.0
+
+        if ((sorted_step_energies[0] <= 0.0 < sorted_step_energies[1]) or
+                (sorted_step_energies[0] < 0.0 <= sorted_step_energies[1])):
+            _accumulate_small_tetra_polstat_inner_numba(
+                sorted_weights,
+                0,
+                sorted_step_energies,
+                sorted_occupied,
+                sorted_target,
+                strict_energies,
+                affine,
+                coefficients,
+                energy_differences,
+                log_weights,
+                log_sorted_order,
+                log_sorted_differences,
+                logarithms,
+                log_sorted_weights,
+            )
+        elif ((sorted_step_energies[1] <= 0.0 < sorted_step_energies[2]) or
+                (sorted_step_energies[1] < 0.0 <= sorted_step_energies[2])):
+            for case_id in (1, 2, 3):
+                _accumulate_small_tetra_polstat_inner_numba(
+                    sorted_weights,
+                    case_id,
+                    sorted_step_energies,
+                    sorted_occupied,
+                    sorted_target,
+                    strict_energies,
+                    affine,
+                    coefficients,
+                    energy_differences,
+                    log_weights,
+                    log_sorted_order,
+                    log_sorted_differences,
+                    logarithms,
+                    log_sorted_weights,
+                )
+        elif ((sorted_step_energies[2] <= 0.0 < sorted_step_energies[3]) or
+                (sorted_step_energies[2] < 0.0 <= sorted_step_energies[3])):
+            for case_id in (4, 5, 6):
+                _accumulate_small_tetra_polstat_inner_numba(
+                    sorted_weights,
+                    case_id,
+                    sorted_step_energies,
+                    sorted_occupied,
+                    sorted_target,
+                    strict_energies,
+                    affine,
+                    coefficients,
+                    energy_differences,
+                    log_weights,
+                    log_sorted_order,
+                    log_sorted_differences,
+                    logarithms,
+                    log_sorted_weights,
+                )
+        elif sorted_step_energies[3] <= 0.0:
+            for vertex_index in range(4):
+                energy_differences[vertex_index] = sorted_target[vertex_index] - sorted_occupied[vertex_index]
+            _polstat_logarithmic_weights_numba(
+                energy_differences,
+                log_weights,
+                log_sorted_order,
+                log_sorted_differences,
+                logarithms,
+                log_sorted_weights,
+            )
+            for vertex_index in range(4):
+                sorted_weights[vertex_index] += log_weights[vertex_index]
+
+        for vertex_index in range(4):
+            weights[target_band_index, sorted_order[vertex_index]] = sorted_weights[vertex_index]
+
+
+@njit(cache=True)
+def _accumulate_small_tetra_polstat_inner_numba(
+    weights: FloatArray,
+    case_id: int,
+    sorted_step_energies: FloatArray,
+    sorted_occupied: FloatArray,
+    sorted_target: FloatArray,
+    strict_energies: FloatArray,
+    affine: FloatArray,
+    coefficients: FloatArray,
+    energy_differences: FloatArray,
+    log_weights: FloatArray,
+    log_sorted_order: npt.NDArray[np.int64],
+    log_sorted_differences: FloatArray,
+    logarithms: FloatArray,
+    log_sorted_weights: FloatArray,
+) -> None:
+    volume_factor = small_tetra_volume_and_coefficients(
+        case_id,
+        sorted_step_energies,
+        strict_energies,
+        affine,
+        coefficients,
+    )
+    if volume_factor <= 1.0e-8:
+        return
+
+    for row_index in range(4):
+        total = 0.0
+        for column_index in range(4):
+            total += coefficients[row_index, column_index] * (sorted_target[column_index] - sorted_occupied[column_index])
+        energy_differences[row_index] = total
+
+    _polstat_logarithmic_weights_numba(
+        energy_differences,
+        log_weights,
+        log_sorted_order,
+        log_sorted_differences,
+        logarithms,
+        log_sorted_weights,
+    )
+
+    for column_index in range(4):
+        total = 0.0
+        for row_index in range(4):
+            total += log_weights[row_index] * coefficients[row_index, column_index]
+        weights[column_index] += volume_factor * total
+
+
+@njit(cache=True)
+def _polstat_logarithmic_weights_numba(
+    energy_differences: FloatArray,
+    weights: FloatArray,
+    sorted_order: npt.NDArray[np.int64],
+    sorted_differences: FloatArray,
+    logarithms: FloatArray,
+    sorted_weights: FloatArray,
+) -> None:
+    sort4(energy_differences, sorted_order, sorted_differences)
+    threshold = sorted_differences[3] * 1.0e-3
+    absolute_floor = 1.0e-8
+
+    for index in range(4):
+        if sorted_differences[index] < absolute_floor:
+            if index == 2:
+                raise RuntimeError("encountered nesting condition in polstat")
+            logarithms[index] = 0.0
+            sorted_differences[index] = 0.0
+        else:
+            logarithms[index] = np.log(sorted_differences[index])
+
+    sorted_weights[:] = 0.0
+
+    if abs(sorted_differences[3] - sorted_differences[2]) < threshold:
+        if abs(sorted_differences[3] - sorted_differences[1]) < threshold:
+            if abs(sorted_differences[3] - sorted_differences[0]) < threshold:
+                sorted_weights[:] = 0.25 / sorted_differences[3]
+            else:
+                sorted_weights[3] = _polstat_1211_numba(sorted_differences[3], sorted_differences[0], logarithms[3], logarithms[0])
+                sorted_weights[2] = sorted_weights[3]
+                sorted_weights[1] = sorted_weights[3]
+                sorted_weights[0] = _polstat_1222_numba(sorted_differences[0], sorted_differences[3], logarithms[0], logarithms[3])
+                _check_polstat_weights_numba(sorted_weights)
+        elif abs(sorted_differences[1] - sorted_differences[0]) < threshold:
+            sorted_weights[3] = _polstat_1221_numba(sorted_differences[3], sorted_differences[1], logarithms[3], logarithms[1])
+            sorted_weights[2] = sorted_weights[3]
+            sorted_weights[1] = _polstat_1221_numba(sorted_differences[1], sorted_differences[3], logarithms[1], logarithms[3])
+            sorted_weights[0] = sorted_weights[1]
+            _check_polstat_weights_numba(sorted_weights)
+        else:
+            sorted_weights[3] = _polstat_1231_numba(
+                sorted_differences[3],
+                sorted_differences[0],
+                sorted_differences[1],
+                logarithms[3],
+                logarithms[0],
+                logarithms[1],
+            )
+            sorted_weights[2] = sorted_weights[3]
+            sorted_weights[1] = _polstat_1233_numba(
+                sorted_differences[1],
+                sorted_differences[0],
+                sorted_differences[3],
+                logarithms[1],
+                logarithms[0],
+                logarithms[3],
+            )
+            sorted_weights[0] = _polstat_1233_numba(
+                sorted_differences[0],
+                sorted_differences[1],
+                sorted_differences[3],
+                logarithms[0],
+                logarithms[1],
+                logarithms[3],
+            )
+            _check_polstat_weights_numba(sorted_weights)
+    elif abs(sorted_differences[2] - sorted_differences[1]) < threshold:
+        if abs(sorted_differences[2] - sorted_differences[0]) < threshold:
+            sorted_weights[3] = _polstat_1222_numba(sorted_differences[3], sorted_differences[2], logarithms[3], logarithms[2])
+            sorted_weights[2] = _polstat_1211_numba(sorted_differences[2], sorted_differences[3], logarithms[2], logarithms[3])
+            sorted_weights[1] = sorted_weights[2]
+            sorted_weights[0] = sorted_weights[2]
+            _check_polstat_weights_numba(sorted_weights)
+        else:
+            sorted_weights[3] = _polstat_1233_numba(
+                sorted_differences[3],
+                sorted_differences[0],
+                sorted_differences[2],
+                logarithms[3],
+                logarithms[0],
+                logarithms[2],
+            )
+            sorted_weights[2] = _polstat_1231_numba(
+                sorted_differences[2],
+                sorted_differences[0],
+                sorted_differences[3],
+                logarithms[2],
+                logarithms[0],
+                logarithms[3],
+            )
+            sorted_weights[1] = sorted_weights[2]
+            sorted_weights[0] = _polstat_1233_numba(
+                sorted_differences[0],
+                sorted_differences[3],
+                sorted_differences[2],
+                logarithms[0],
+                logarithms[3],
+                logarithms[2],
+            )
+            _check_polstat_weights_numba(sorted_weights)
+    elif abs(sorted_differences[1] - sorted_differences[0]) < threshold:
+        sorted_weights[3] = _polstat_1233_numba(
+            sorted_differences[3],
+            sorted_differences[2],
+            sorted_differences[1],
+            logarithms[3],
+            logarithms[2],
+            logarithms[1],
+        )
+        sorted_weights[2] = _polstat_1233_numba(
+            sorted_differences[2],
+            sorted_differences[3],
+            sorted_differences[1],
+            logarithms[2],
+            logarithms[3],
+            logarithms[1],
+        )
+        sorted_weights[1] = _polstat_1231_numba(
+            sorted_differences[1],
+            sorted_differences[2],
+            sorted_differences[3],
+            logarithms[1],
+            logarithms[2],
+            logarithms[3],
+        )
+        sorted_weights[0] = sorted_weights[1]
+        _check_polstat_weights_numba(sorted_weights)
+    else:
+        sorted_weights[3] = _polstat_1234_numba(
+            sorted_differences[3],
+            sorted_differences[0],
+            sorted_differences[1],
+            sorted_differences[2],
+            logarithms[3],
+            logarithms[0],
+            logarithms[1],
+            logarithms[2],
+        )
+        sorted_weights[2] = _polstat_1234_numba(
+            sorted_differences[2],
+            sorted_differences[0],
+            sorted_differences[1],
+            sorted_differences[3],
+            logarithms[2],
+            logarithms[0],
+            logarithms[1],
+            logarithms[3],
+        )
+        sorted_weights[1] = _polstat_1234_numba(
+            sorted_differences[1],
+            sorted_differences[0],
+            sorted_differences[2],
+            sorted_differences[3],
+            logarithms[1],
+            logarithms[0],
+            logarithms[2],
+            logarithms[3],
+        )
+        sorted_weights[0] = _polstat_1234_numba(
+            sorted_differences[0],
+            sorted_differences[1],
+            sorted_differences[2],
+            sorted_differences[3],
+            logarithms[0],
+            logarithms[1],
+            logarithms[2],
+            logarithms[3],
+        )
+        _check_polstat_weights_numba(sorted_weights)
+
+    weights[:] = 0.0
+    for vertex_index in range(4):
+        weights[sorted_order[vertex_index]] = sorted_weights[vertex_index]
+
+
+@njit(cache=True)
+def _check_polstat_weights_numba(weights: FloatArray) -> None:
+    for vertex_index in range(4):
+        if weights[vertex_index] < 0.0:
+            raise RuntimeError("negative polstat weights encountered")
+
+
+@njit(cache=True)
+def _polstat_1234_numba(g1: float, g2: float, g3: float, g4: float, log1: float, log2: float, log3: float, log4: float) -> float:
+    weight_2 = (((log2 - log1) / (g2 - g1) * g2) - 1.0) * g2 / (g2 - g1)
+    weight_3 = (((log3 - log1) / (g3 - g1) * g3) - 1.0) * g3 / (g3 - g1)
+    weight_4 = (((log4 - log1) / (g4 - g1) * g4) - 1.0) * g4 / (g4 - g1)
+    weight_2 = ((weight_2 - weight_3) * g2) / (g2 - g3)
+    weight_4 = ((weight_4 - weight_3) * g4) / (g4 - g3)
+    return (weight_4 - weight_2) / (g4 - g2)
+
+
+@njit(cache=True)
+def _polstat_1231_numba(g1: float, g2: float, g3: float, log1: float, log2: float, log3: float) -> float:
+    weight_2 = ((((log2 - log1) / (g2 - g1) * g2) - 1.0) * g2 ** 2 / (g2 - g1) - g1 / 2.0) / (g2 - g1)
+    weight_3 = ((((log3 - log1) / (g3 - g1) * g3) - 1.0) * g3 ** 2 / (g3 - g1) - g1 / 2.0) / (g3 - g1)
+    return (weight_3 - weight_2) / (g3 - g2)
+
+
+@njit(cache=True)
+def _polstat_1233_numba(g1: float, g2: float, g3: float, log1: float, log2: float, log3: float) -> float:
+    weight_2 = (log2 - log1) / (g2 - g1) * g2 - 1.0
+    weight_2 = (g2 * weight_2) / (g2 - g1)
+    weight_3 = (log3 - log1) / (g3 - g1) * g3 - 1.0
+    weight_3 = (g3 * weight_3) / (g3 - g1)
+    weight_2 = (weight_3 - weight_2) / (g3 - g2)
+    weight_3 = (log3 - log1) / (g3 - g1) * g3 - 1.0
+    weight_3 = 1.0 - (2.0 * weight_3 * g1) / (g3 - g1)
+    weight_3 = weight_3 / (g3 - g1)
+    return (g3 * weight_3 - g2 * weight_2) / (g3 - g2)
+
+
+@njit(cache=True)
+def _polstat_1221_numba(g1: float, g2: float, log1: float, log2: float) -> float:
+    weight = 1.0 - (log2 - log1) / (g2 - g1) * g1
+    weight = -1.0 + (2.0 * g2 * weight) / (g2 - g1)
+    weight = -1.0 + (3.0 * g2 * weight) / (g2 - g1)
+    return weight / (2.0 * (g2 - g1))
+
+
+@njit(cache=True)
+def _polstat_1222_numba(g1: float, g2: float, log1: float, log2: float) -> float:
+    weight = (log2 - log1) / (g2 - g1) * g2 - 1.0
+    weight = (2.0 * g1 * weight) / (g2 - g1) - 1.0
+    weight = (3.0 * g1 * weight) / (g2 - g1) + 1.0
+    return weight / (2.0 * (g2 - g1))
+
+
+@njit(cache=True)
+def _polstat_1211_numba(g1: float, g2: float, log1: float, log2: float) -> float:
+    weight = -1.0 + (log2 - log1) / (g2 - g1) * g2
+    weight = -1.0 + (2.0 * g2 * weight) / (g2 - g1)
+    weight = -1.0 + (3.0 * g2 * weight) / (2.0 * (g2 - g1))
+    return weight / (3.0 * (g2 - g1))
 
 
 def _accumulate_small_tetra_step(weights: FloatArray, kind: str, sorted_energies: FloatArray) -> None:

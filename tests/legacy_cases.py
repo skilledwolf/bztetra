@@ -191,6 +191,16 @@ def legacy_16x16_polstat_weighted_integrals() -> FloatArray:
     )
 
 
+def legacy_16x8_polstat_weighted_integrals() -> FloatArray:
+    return np.array(
+        [
+            [4.1364, 1.2224],
+            [5.4685, 2.0912],
+        ],
+        dtype=np.float64,
+    )
+
+
 def exact_polstat_weighted_integrals() -> FloatArray:
     return np.array(
         [
