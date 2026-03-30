@@ -5,6 +5,8 @@ import time
 
 import numpy as np
 
+from tetrabz import dbldelta
+from tetrabz import dblstep
 from tetrabz import dos
 from tetrabz import intdos
 from tetrabz import occ
@@ -21,6 +23,7 @@ def main() -> None:
 
     reciprocal_vectors = np.diag([3.0, 3.0, 3.0]).astype(np.float64)
     scalar_bands = _free_electron_bands(reciprocal_vectors, grid_shape)
+    response_occupied_bands, response_target_bands = _free_electron_response_bands(reciprocal_vectors, grid_shape)
     occupied_bands, target_bands = _lindhard_bands(reciprocal_vectors, grid_shape, q_value=args.q_value)
 
     tasks = [
@@ -50,6 +53,26 @@ def main() -> None:
                 reciprocal_vectors,
                 scalar_bands,
                 sample_energies,
+                weight_grid_shape=grid_shape,
+                method=args.method,
+            ),
+        ),
+        (
+            "dblstep",
+            lambda: dblstep(
+                reciprocal_vectors,
+                response_occupied_bands,
+                response_target_bands,
+                weight_grid_shape=grid_shape,
+                method=args.method,
+            ),
+        ),
+        (
+            "dbldelta",
+            lambda: dbldelta(
+                reciprocal_vectors,
+                response_occupied_bands,
+                response_target_bands,
                 weight_grid_shape=grid_shape,
                 method=args.method,
             ),
@@ -123,6 +146,29 @@ def _lindhard_bands(
                 occupied[x_index, y_index, z_index, 0] = 0.5 * float(np.dot(kvec, kvec)) - FERMI_ENERGY
                 shifted = kvec + qvec
                 target[x_index, y_index, z_index, 0] = 0.5 * float(np.dot(shifted, shifted)) - FERMI_ENERGY
+
+    return occupied, target
+
+
+def _free_electron_response_bands(
+    reciprocal_vectors: np.ndarray,
+    grid_shape: tuple[int, int, int],
+) -> tuple[np.ndarray, np.ndarray]:
+    occupied = np.empty((*grid_shape, 2), dtype=np.float64)
+    target = np.empty((*grid_shape, 2), dtype=np.float64)
+
+    nx, ny, nz = grid_shape
+    for x_index in range(nx):
+        for y_index in range(ny):
+            for z_index in range(nz):
+                kvec = reciprocal_vectors @ _centered_fractional_kpoint((x_index, y_index, z_index), grid_shape)
+                base = 0.5 * float(np.dot(kvec, kvec)) - FERMI_ENERGY
+                shifted = kvec.copy()
+                shifted[0] = shifted[0] + 1.0
+                occupied[x_index, y_index, z_index, 0] = base
+                occupied[x_index, y_index, z_index, 1] = base + 0.25
+                target[x_index, y_index, z_index, 0] = 0.5 * float(np.dot(shifted, shifted)) - FERMI_ENERGY
+                target[x_index, y_index, z_index, 1] = base + 0.5
 
     return occupied, target
 

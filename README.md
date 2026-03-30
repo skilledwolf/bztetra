@@ -12,8 +12,9 @@ The implementation strategy is:
 
 - NumPy for array orchestration and test/reference helpers.
 - Numba for hot scalar and tensor kernels once the numerical contracts are
-  locked down. The occupation, DOS, and integrated-DOS paths are now compiled;
-  the response hot loops are next.
+  locked down. The occupation, DOS, integrated-DOS, `dblstep`, and `dbldelta`
+  paths are now compiled; `polstat` and the frequency-dependent response
+  kernels are next.
 - SciPy only where it materially helps validation, reference calculations, or
   tooling; it is not a planned dependency for the core runtime path right now.
 
@@ -66,7 +67,7 @@ free-electron fixture against the analytic continuum target, run:
 ```
 
 For a quick local timing baseline on the current hot paths (`occ`, `dos`,
-`intdos`, `polstat`), run:
+`intdos`, `dblstep`, `dbldelta`, `polstat`), run:
 
 ```bash
 PYTHONPATH=src .venv/bin/python benchmarks/benchmark_hotpaths.py
