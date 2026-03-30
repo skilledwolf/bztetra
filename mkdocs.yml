@@ -16,6 +16,10 @@ theme:
     - search.suggest
     - search.highlight
 
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
 markdown_extensions:
   - admonition
   - attr_list
@@ -28,6 +32,8 @@ markdown_extensions:
       anchor_linenums: true
   - pymdownx.inlinehilite
   - pymdownx.superfences
+  - pymdownx.arithmatex:
+      generic: true
 
 plugins:
   - search
@@ -46,7 +52,8 @@ plugins:
 
 nav:
   - Home: index.md
+  - Physics Guide: physics.md
+  - Examples: examples.md
   - Quickstart: quickstart.md
   - API Reference: api.md
-  - Examples: examples.md
   - Validation: validation.md

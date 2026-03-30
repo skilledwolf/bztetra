@@ -84,8 +84,8 @@ sum only over the k-grid axes.
 | Static overlap, nesting, or polarization between two band manifolds | `phase_space_overlap_weights`, `nesting_function_weights`, `static_polarization_weights` |
 | Repeated real- or complex-frequency response sweeps | `prepare_response_evaluator`, then `fermi_golden_rule_weights` or `complex_frequency_polarization_weights` |
 
-See [docs/quickstart.md](docs/quickstart.md) for output shapes, routine
-selection, and short usage patterns.
+See [docs/physics.md](docs/physics.md) for the key formulas and
+[docs/examples.md](docs/examples.md) for worked examples with output plots.
 
 ## Examples
 

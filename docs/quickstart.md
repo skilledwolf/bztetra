@@ -21,6 +21,9 @@ the parity checks in [validation.md](validation.md).
 `method="optimized"` is the default and the right choice unless you are
 reproducing legacy linear-tetrahedron results.
 
+If you want the physics before the call signatures, read
+[Physics Guide](physics.md) first.
+
 ## Which Function Should I Call?
 
 | Task | Function | Return shape |

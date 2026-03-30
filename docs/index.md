@@ -1,11 +1,8 @@
 # bztetra
 
 `bztetra` is a Python + Numba package for tetrahedron integration on regular
-k-grids.
-
-It is designed for users who already have eigenvalues on a structured mesh and
-want k-resolved weights for occupations, DOS, and Lindhard-style response
-functions without going through the legacy `libtetrabz` wrapper.
+k-grids, aimed at electronic-structure users who want physically meaningful
+Brillouin-zone weights without going through the legacy `libtetrabz` wrapper.
 
 !!! warning "Pre-release status"
 
@@ -16,30 +13,29 @@ functions without going through the legacy `libtetrabz` wrapper.
 
 <div class="grid cards" markdown>
 
+-   __Physics Guide__
+
+    ---
+
+    What each routine computes, with the key formulas in display math.
+
+    [Open the physics guide](physics.md)
+
+-   __Worked Examples__
+
+    ---
+
+    Minimal examples with actual output plots for DOS and response functions.
+
+    [See the examples](examples.md)
+
 -   __Quickstart__
 
     ---
 
-    Array conventions, a first calculation, and the repeated-response workflow.
+    The array conventions, output shapes, and first correct calls.
 
     [Open quickstart](quickstart.md)
-
--   __API Reference__
-
-    ---
-
-    The stable public surface, rendered from the package docstrings.
-
-    [Browse the API](api.md)
-
--   __Examples__
-
-    ---
-
-    Which example script to run for DOS, occupations, Lindhard response, and
-    more.
-
-    [See examples](examples.md)
 
 -   __Validation__
 
@@ -51,23 +47,33 @@ functions without going through the legacy `libtetrabz` wrapper.
 
 </div>
 
-## What bztetra Gives You
+## What It Computes
 
-- NumPy arrays in, NumPy arrays out.
-- Optimized and legacy-linear tetrahedron schemes.
-- A band-last public API with shape contracts written in Python terms.
-- Validation against the original shell references, the legacy Python wrapper,
-  and analytic free-electron cases.
+The public routines cover the usual tetrahedron-method objects a condensed-
+matter user cares about:
 
-## The Four Rules That Matter
+\[
+\Theta(E_F - \varepsilon_n(\mathbf{k})),
+\qquad
+\delta(E - \varepsilon_n(\mathbf{k})),
+\qquad
+\chi_0(\mathbf{q}),
+\qquad
+\Pi_0(\mathbf{q}, z).
+\]
 
-1. `reciprocal_vectors` is a `(3, 3)` matrix with reciprocal basis vectors in
-   columns.
-2. Eigenvalue inputs always use shape `(nx, ny, nz, nbands)`.
-3. `weight_grid_shape` changes the output grid, not the grid on which your
-   eigenvalues were sampled.
-4. Response outputs end in `(target_band, source_band)`, and
-   frequency-dependent response adds a leading energy axis.
+The package returns the corresponding **k-resolved weights**, so you can still
+apply matrix elements or projectors before the final Brillouin-zone sum.
+
+## Start Here
+
+If you want the docs in physicist order rather than package order:
+
+1. Read [Physics Guide](physics.md) to see the actual quantities and formulas.
+2. Read [Examples](examples.md) to see minimal scripts and output plots.
+3. Use [Quickstart](quickstart.md) only to check array conventions and shapes.
+4. Use [API Reference](api.md) when you need signatures, not when you need the
+   physical idea first.
 
 ## Original Project
 
