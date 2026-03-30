@@ -10,9 +10,9 @@ from tetrabz._grids import interpolate_local_values
 from tetrabz._grids import interpolated_tetrahedron_energies
 from tetrabz._grids import normalize_eigenvalues
 from tetrabz.geometry import build_integration_mesh
-from tetrabz.response import _accumulate_small_tetra_polstat_outer
-from tetrabz.response import _polstat_secondary_weights
-from tetrabz.response import _unflatten_pair_band_last
+from tetrabz._response_common import _unflatten_pair_band_last
+from tetrabz._response_reference import _accumulate_small_tetra_polstat_outer
+from tetrabz._response_reference import _polstat_secondary_weights
 from tests.legacy_cases import brillouin_zone_volume
 from tests.legacy_cases import exact_nesting_function_weighted_integrals
 from tests.legacy_cases import exact_phase_space_overlap_weighted_integrals
