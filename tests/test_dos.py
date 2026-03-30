@@ -1,6 +1,7 @@
 import numpy as np
 
 from tetrabz import dos
+from tetrabz import fermieng
 from tetrabz import intdos
 from tetrabz import occ
 from tests.legacy_cases import brillouin_zone_volume
@@ -108,6 +109,40 @@ def test_optimized_tight_binding_dos_matches_legacy_example_curve() -> None:
     np.testing.assert_allclose(current_curve, legacy_curve, rtol=5.0e-4, atol=1.0e-7)
 
 
+def test_optimized_tight_binding_intdos_tracks_converged_reference_shape() -> None:
+    reciprocal_vectors, eigenvalues = cubic_tight_binding_band((8, 8, 8))
+    sample_energies = tight_binding_dos_energy_points()
+
+    weights = intdos(
+        reciprocal_vectors,
+        eigenvalues,
+        sample_energies,
+        weight_grid_shape=(8, 8, 8),
+        method="optimized",
+    )
+    integrated_curve = weights.sum(axis=(1, 2, 3, 4))
+
+    reference_curve = load_legacy_example_dataset("dos40.dat")
+    reference_intdos = _cumulative_trapezoid(reference_curve[:, 0], reference_curve[:, 1])
+    reference_intdos /= reference_intdos[-1]
+
+    np.testing.assert_allclose(integrated_curve, reference_intdos, rtol=0.0, atol=2.5e-3)
+
+
+def test_optimized_tight_binding_half_filling_fermi_energy_stays_at_zero() -> None:
+    reciprocal_vectors, eigenvalues = cubic_tight_binding_band((8, 8, 8))
+
+    fermi_energy, _, _ = fermieng(
+        reciprocal_vectors,
+        eigenvalues,
+        electrons_per_spin=0.5,
+        weight_grid_shape=(8, 8, 8),
+        method="optimized",
+    )
+
+    assert abs(fermi_energy) < 1.0e-12
+
+
 def test_tight_binding_intdos_is_monotone_and_normalized() -> None:
     reciprocal_vectors, eigenvalues = cubic_tight_binding_band((8, 8, 8))
     sample_energies = tight_binding_dos_energy_points()
@@ -128,3 +163,8 @@ def test_tight_binding_intdos_is_monotone_and_normalized() -> None:
 
 def _weighted_integrals(weights: np.ndarray, metric: np.ndarray, reciprocal_vectors: np.ndarray) -> np.ndarray:
     return (weights * metric[None, ..., None]).sum(axis=(1, 2, 3)) * brillouin_zone_volume(reciprocal_vectors)
+
+
+def _cumulative_trapezoid(x_values: np.ndarray, y_values: np.ndarray) -> np.ndarray:
+    increments = 0.5 * (y_values[1:] + y_values[:-1]) * np.diff(x_values)
+    return np.concatenate((np.zeros(1, dtype=np.float64), np.cumsum(increments)))

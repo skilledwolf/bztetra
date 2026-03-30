@@ -6,6 +6,8 @@ import numpy as np
 import numpy.typing as npt
 from numba import njit
 
+from ._cut_kernels import accumulate_small_tetra_weight_sums
+from ._cut_kernels import sort4_shifted
 from ._grids import FloatArray
 from ._grids import interpolate_local_values
 from ._grids import interpolated_tetrahedron_energies
@@ -186,12 +188,15 @@ def _occupation_weights_on_local_mesh_numba(
 
     sorted_order = np.empty(4, dtype=np.int64)
     sorted_energies = np.empty(4, dtype=np.float64)
+    strict_energies = np.empty(4, dtype=np.float64)
     vertex_weights = np.empty(4, dtype=np.float64)
     point_weights = np.empty(20, dtype=np.float64)
+    affine = np.empty((4, 4), dtype=np.float64)
+    coefficients = np.empty((4, 4), dtype=np.float64)
 
     for tetrahedron_index in range(tetrahedron_count):
         for band_index in range(band_count):
-            _sort4_with_shift(
+            sort4_shifted(
                 tetra_band_energies[tetrahedron_index, :, band_index],
                 fermi_energy,
                 sorted_order,
@@ -200,15 +205,78 @@ def _occupation_weights_on_local_mesh_numba(
             vertex_weights[:] = 0.0
 
             if sorted_energies[0] <= 0.0 < sorted_energies[1]:
-                _accumulate_cut_numba(vertex_weights, sorted_order, 0, sorted_energies)
+                accumulate_small_tetra_weight_sums(
+                    vertex_weights,
+                    sorted_order,
+                    0,
+                    sorted_energies,
+                    strict_energies,
+                    0.25,
+                    affine,
+                    coefficients,
+                )
             elif sorted_energies[1] <= 0.0 < sorted_energies[2]:
-                _accumulate_cut_numba(vertex_weights, sorted_order, 1, sorted_energies)
-                _accumulate_cut_numba(vertex_weights, sorted_order, 2, sorted_energies)
-                _accumulate_cut_numba(vertex_weights, sorted_order, 3, sorted_energies)
+                accumulate_small_tetra_weight_sums(
+                    vertex_weights,
+                    sorted_order,
+                    1,
+                    sorted_energies,
+                    strict_energies,
+                    0.25,
+                    affine,
+                    coefficients,
+                )
+                accumulate_small_tetra_weight_sums(
+                    vertex_weights,
+                    sorted_order,
+                    2,
+                    sorted_energies,
+                    strict_energies,
+                    0.25,
+                    affine,
+                    coefficients,
+                )
+                accumulate_small_tetra_weight_sums(
+                    vertex_weights,
+                    sorted_order,
+                    3,
+                    sorted_energies,
+                    strict_energies,
+                    0.25,
+                    affine,
+                    coefficients,
+                )
             elif sorted_energies[2] <= 0.0 < sorted_energies[3]:
-                _accumulate_cut_numba(vertex_weights, sorted_order, 4, sorted_energies)
-                _accumulate_cut_numba(vertex_weights, sorted_order, 5, sorted_energies)
-                _accumulate_cut_numba(vertex_weights, sorted_order, 6, sorted_energies)
+                accumulate_small_tetra_weight_sums(
+                    vertex_weights,
+                    sorted_order,
+                    4,
+                    sorted_energies,
+                    strict_energies,
+                    0.25,
+                    affine,
+                    coefficients,
+                )
+                accumulate_small_tetra_weight_sums(
+                    vertex_weights,
+                    sorted_order,
+                    5,
+                    sorted_energies,
+                    strict_energies,
+                    0.25,
+                    affine,
+                    coefficients,
+                )
+                accumulate_small_tetra_weight_sums(
+                    vertex_weights,
+                    sorted_order,
+                    6,
+                    sorted_energies,
+                    strict_energies,
+                    0.25,
+                    affine,
+                    coefficients,
+                )
             elif sorted_energies[3] <= 0.0:
                 vertex_weights[:] = 0.25
 
@@ -223,114 +291,3 @@ def _occupation_weights_on_local_mesh_numba(
 
     local_weights /= float(normalization)
     return local_weights
-
-
-@njit(cache=True)
-def _sort4_with_shift(
-    values: FloatArray,
-    shift: float,
-    sorted_order: npt.NDArray[np.int64],
-    sorted_values: FloatArray,
-) -> None:
-    for index in range(4):
-        sorted_order[index] = index
-        sorted_values[index] = values[index] - shift
-
-    for index in range(1, 4):
-        key_value = sorted_values[index]
-        key_order = sorted_order[index]
-        scan = index - 1
-        while scan >= 0 and sorted_values[scan] > key_value:
-            sorted_values[scan + 1] = sorted_values[scan]
-            sorted_order[scan + 1] = sorted_order[scan]
-            scan -= 1
-        sorted_values[scan + 1] = key_value
-        sorted_order[scan + 1] = key_order
-
-
-@njit(cache=True)
-def _accumulate_cut_numba(
-    weights: FloatArray,
-    sorted_order: npt.NDArray[np.int64],
-    case_id: int,
-    sorted_energies: FloatArray,
-) -> None:
-    energies = sorted_energies.copy()
-    for index in range(1, 4):
-        if energies[index] <= energies[index - 1]:
-            energies[index] = np.nextafter(energies[index - 1], np.inf)
-
-    affine = np.zeros((4, 4), dtype=np.float64)
-    for column in range(4):
-        energy = energies[column]
-        for row in range(4):
-            if row != column:
-                affine[row, column] = -energy / (energies[row] - energy)
-
-    coefficients = np.zeros((4, 4), dtype=np.float64)
-
-    if case_id == 0:
-        volume_factor = affine[1, 0] * affine[2, 0] * affine[3, 0]
-        coefficients[0, 0] = 1.0
-        coefficients[1, 0] = affine[0, 1]
-        coefficients[1, 1] = affine[1, 0]
-        coefficients[2, 0] = affine[0, 2]
-        coefficients[2, 2] = affine[2, 0]
-        coefficients[3, 0] = affine[0, 3]
-        coefficients[3, 3] = affine[3, 0]
-    elif case_id == 1:
-        volume_factor = affine[2, 0] * affine[3, 0] * affine[1, 3]
-        coefficients[0, 0] = 1.0
-        coefficients[1, 0] = affine[0, 2]
-        coefficients[1, 2] = affine[2, 0]
-        coefficients[2, 0] = affine[0, 3]
-        coefficients[2, 3] = affine[3, 0]
-        coefficients[3, 1] = affine[1, 3]
-        coefficients[3, 3] = affine[3, 1]
-    elif case_id == 2:
-        volume_factor = affine[2, 1] * affine[3, 1]
-        coefficients[0, 0] = 1.0
-        coefficients[1, 1] = 1.0
-        coefficients[2, 1] = affine[1, 2]
-        coefficients[2, 2] = affine[2, 1]
-        coefficients[3, 1] = affine[1, 3]
-        coefficients[3, 3] = affine[3, 1]
-    elif case_id == 3:
-        volume_factor = affine[1, 2] * affine[2, 0] * affine[3, 1]
-        coefficients[0, 0] = 1.0
-        coefficients[1, 0] = affine[0, 2]
-        coefficients[1, 2] = affine[2, 0]
-        coefficients[2, 1] = affine[1, 2]
-        coefficients[2, 2] = affine[2, 1]
-        coefficients[3, 1] = affine[1, 3]
-        coefficients[3, 3] = affine[3, 1]
-    elif case_id == 4:
-        volume_factor = affine[3, 2]
-        coefficients[0, 0] = 1.0
-        coefficients[1, 1] = 1.0
-        coefficients[2, 2] = 1.0
-        coefficients[3, 2] = affine[2, 3]
-        coefficients[3, 3] = affine[3, 2]
-    elif case_id == 5:
-        volume_factor = affine[2, 3] * affine[3, 1]
-        coefficients[0, 0] = 1.0
-        coefficients[1, 1] = 1.0
-        coefficients[2, 1] = affine[1, 3]
-        coefficients[2, 3] = affine[3, 1]
-        coefficients[3, 2] = affine[2, 3]
-        coefficients[3, 3] = affine[3, 2]
-    else:
-        volume_factor = affine[2, 3] * affine[1, 3] * affine[3, 0]
-        coefficients[0, 0] = 1.0
-        coefficients[1, 0] = affine[0, 3]
-        coefficients[1, 3] = affine[3, 0]
-        coefficients[2, 1] = affine[1, 3]
-        coefficients[2, 3] = affine[3, 1]
-        coefficients[3, 2] = affine[2, 3]
-        coefficients[3, 3] = affine[3, 2]
-
-    for column in range(4):
-        column_sum = 0.0
-        for row in range(4):
-            column_sum += coefficients[row, column]
-        weights[sorted_order[column]] += volume_factor * column_sum * 0.25

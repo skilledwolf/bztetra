@@ -6,6 +6,7 @@ import time
 import numpy as np
 
 from tetrabz import dos
+from tetrabz import intdos
 from tetrabz import occ
 from tetrabz import polstat
 
@@ -36,6 +37,16 @@ def main() -> None:
         (
             "dos",
             lambda: dos(
+                reciprocal_vectors,
+                scalar_bands,
+                sample_energies,
+                weight_grid_shape=grid_shape,
+                method=args.method,
+            ),
+        ),
+        (
+            "intdos",
+            lambda: intdos(
                 reciprocal_vectors,
                 scalar_bands,
                 sample_energies,
