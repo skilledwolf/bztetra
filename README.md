@@ -31,3 +31,10 @@ shared cut-formula helpers, and one occupation-weight result, run:
 ```bash
 .venv/bin/python examples/review_geometry_and_cuts.py
 ```
+
+For a focused occupation / Fermi-search review against the legacy 8x8 toy
+system, run:
+
+```bash
+.venv/bin/python examples/review_occupancy.py
+```
