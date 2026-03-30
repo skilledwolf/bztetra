@@ -8,9 +8,9 @@ against the original
 [`libtetrabz`](https://github.com/mitsuaki1987/libtetrabz) implementation or
 the parity checks in [validation.md](validation.md).
 
-Current scope is strictly 3D regular k-grids. For genuinely 2D problems, do
-not fake a flat third axis with `nz=1`; that needs a separate triangle-method
-path. See [two_dimensional_plan.md](two_dimensional_plan.md).
+The top-level `bztetra` routines on this page are strictly 3D. For 2D
+occupation/DOS work, use `bztetra.twod`. Do not fake a flat third axis with
+`nz=1`; see [two_dimensional_plan.md](two_dimensional_plan.md).
 
 ## Four Things To Know
 

@@ -168,5 +168,6 @@ polarization = weights.sum(axis=(1, 2, 3)) * np.linalg.det(bvec)
 
 - `python examples/review_occupancy.py`
 - `python examples/review_dos.py`
+- `python examples/plot_twod_square_lattice_dos.py`
 - `python examples/plot_fermi_golden_rule.py`
 - `python examples/review_geometry_and_cuts.py`

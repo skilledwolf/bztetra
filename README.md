@@ -7,9 +7,10 @@ It is aimed at users who already have band energies on a regular mesh and want
 k-resolved weights for occupations, DOS, and Lindhard-style response functions
 without going through the legacy `libtetrabz` wrapper.
 
-Current scope is strictly 3D regular k-grids. For genuinely 2D problems, do
-not fake a flat third axis with `nz=1`; that needs a separate triangle-method
-path. See [docs/two_dimensional_plan.md](docs/two_dimensional_plan.md).
+The top-level `bztetra` API remains strictly 3D. Initial 2D support now lives
+under `bztetra.twod` for the occupation/DOS family with the linear triangle
+method. Do not fake a flat third axis with `nz=1`; see
+[docs/two_dimensional_plan.md](docs/two_dimensional_plan.md).
 
 > [!WARNING]
 > `bztetra` is still pre-release. Until the first full public release, users
@@ -101,6 +102,11 @@ See [docs/physics.md](docs/physics.md) for the key formulas and
   weights and Fermi-level search on a small reference problem.
 - [examples/plot_lindhard.py](examples/plot_lindhard.py): static Lindhard
   response figure.
+- [examples/plot_twod_square_lattice_dos.py](examples/plot_twod_square_lattice_dos.py):
+  2D square-lattice DOS and integrated DOS via `bztetra.twod`.
+- [examples/plot_twod_square_lattice_dos.py](examples/plot_twod_square_lattice_dos.py):
+  2D square-lattice DOS and filling with the expected van Hove peak at
+  half-filling.
 
 ## Validation
 

@@ -1,8 +1,19 @@
 # Two-Dimensional Plan
 
-`bztetra` currently supports **3D reciprocal grids only**. That is deliberate:
-the current implementation is built around tetrahedra, trilinear interpolation,
-and Brillouin-zone **volume** integration.
+The top-level `bztetra` API still supports **3D reciprocal grids only**. That
+is deliberate: the original implementation is built around tetrahedra,
+trilinear interpolation, and Brillouin-zone **volume** integration.
+
+An initial 2D slice now exists under `bztetra.twod`:
+
+- regular-grid 2D geometry and triangle decomposition,
+- bilinear interpolation onto a distinct output grid,
+- `occupation_weights`,
+- `solve_fermi_energy`,
+- `density_of_states_weights`,
+- `integrated_density_of_states_weights`.
+
+The 2D response family is still pending.
 
 ## What Not To Do
 
@@ -19,11 +30,11 @@ That shortcut is wrong for three separate reasons:
 
 ## Recommended Strategy
 
-If 2D support lands, it should be a **separate triangle-method path** that
-lives beside the current 3D implementation rather than inside it behind
-shape-dependent branches.
+2D support should remain a **separate triangle-method path** that lives beside
+the current 3D implementation rather than inside it behind shape-dependent
+branches.
 
-The intended design is:
+The current design is:
 
 - keep the current package behavior explicit and 3D-only;
 - add a dedicated 2D mesh and triangle decomposition;
@@ -35,10 +46,9 @@ The intended design is:
 The 2D work splits naturally into a straightforward part and a derivation-heavy
 part.
 
-### I Can Implement Confidently
+### Implemented In The Current Tree
 
-These pieces can be implemented directly from the current code structure plus
-standard triangle-interpolation numerics:
+These pieces are now live in `bztetra.twod`:
 
 - 2D regular-grid geometry and indexing on `(nx, ny)` meshes
 - triangle decomposition of each 2D cell
@@ -48,7 +58,7 @@ standard triangle-interpolation numerics:
 - `density_of_states_weights`
 - `integrated_density_of_states_weights`
 - analytic checks such as constant 2D free-electron DOS
-- plot-first 2D review examples
+- a plot-first 2D square-lattice DOS review example
 
 ### I Want Expert Derivation Review Before Implementing
 
@@ -65,18 +75,13 @@ The main risks are degeneracies, grazing intersections, exact-zero energy
 differences, and getting the piecewise per-triangle formulas wrong while still
 matching the desired k-resolved weight semantics.
 
-## Proposed Implementation Order
+## Next 2D Steps
 
-1. Add a dedicated 2D internal namespace such as `bztetra.twod`.
-2. Implement 2D mesh geometry, triangle decomposition, and bilinear
-   interpolation.
-3. Implement 2D `occupation_weights`, `solve_fermi_energy`,
-   `density_of_states_weights`, and `integrated_density_of_states_weights`.
-4. Add analytic checks and plot-first examples:
-   - constant 2D free-electron DOS,
-   - integrated DOS trends,
-   - a square-lattice DOS figure with the expected van Hove structure.
-5. Only then add the 2D response family after a formula review.
+1. Decide whether the 2D occupation/DOS path should remain linear-only or gain
+   an improved/optimized triangle-weight scheme.
+2. Add more 2D review cases if needed, especially for interpolation-heavy
+   output-grid changes.
+3. Only then add the 2D response family after a formula review.
 
 ## Expert Handoff Prompt
 

@@ -1,0 +1,105 @@
+from __future__ import annotations
+
+import numpy as np
+import numpy.typing as npt
+from numba import njit
+
+from .geometry import TriangleIntegrationMesh
+
+
+IntArray = npt.NDArray[np.int64]
+FloatArray = npt.NDArray[np.float64]
+
+
+def normalize_eigenvalues(eigenvalues: npt.ArrayLike) -> tuple[FloatArray, tuple[int, int]]:
+    values = np.asarray(eigenvalues, dtype=np.float64)
+    if values.ndim != 3:
+        raise ValueError("expected eigenvalues with shape (nx, ny, nbands)")
+    if not np.all(np.isfinite(values)):
+        raise ValueError("eigenvalues must be finite")
+
+    energy_grid_shape = tuple(int(item) for item in values.shape[:2])
+    band_count = values.shape[2]
+    flattened = np.ascontiguousarray(np.transpose(values, (1, 0, 2))).reshape(-1, band_count)
+    return flattened, energy_grid_shape
+
+
+def normalize_energy_samples(energies: npt.ArrayLike) -> FloatArray:
+    values = np.asarray(energies, dtype=np.float64)
+    if values.ndim != 1:
+        raise ValueError("expected a one-dimensional energy grid")
+    if not np.all(np.isfinite(values)):
+        raise ValueError("energy samples must be finite")
+    return values
+
+
+def interpolated_triangle_energies(mesh: TriangleIntegrationMesh, eig_flat: FloatArray) -> FloatArray:
+    return _interpolated_triangle_energies_numba(mesh.global_point_indices, eig_flat)
+
+
+def interpolate_local_values(
+    mesh: TriangleIntegrationMesh,
+    local_values: npt.NDArray[np.generic],
+) -> npt.NDArray[np.generic]:
+    if local_values.shape[0] != mesh.local_point_count:
+        raise ValueError("local values must be indexed by the mesh local-point axis")
+
+    if not mesh.interpolation_required:
+        return local_values
+
+    if mesh.interpolation_indices is None or mesh.interpolation_weights is None:
+        raise ValueError("interpolated mesh requires cached interpolation stencils")
+
+    flattened_features = np.ascontiguousarray(local_values.reshape(local_values.shape[0], -1))
+    output_flat = np.zeros(
+        (int(np.prod(mesh.weight_grid_shape, dtype=np.int64)), flattened_features.shape[1]),
+        dtype=flattened_features.dtype,
+    )
+    _interpolate_local_values_numba(
+        mesh.interpolation_indices,
+        mesh.interpolation_weights,
+        flattened_features,
+        output_flat,
+    )
+    return output_flat.reshape((output_flat.shape[0],) + local_values.shape[1:])
+
+
+@njit(cache=True)
+def _interpolated_triangle_energies_numba(
+    global_point_indices: IntArray,
+    eig_flat: FloatArray,
+) -> FloatArray:
+    triangle_count = global_point_indices.shape[0]
+    band_count = eig_flat.shape[1]
+    triangle_band_energies = np.empty((triangle_count, 3, band_count), dtype=np.float64)
+
+    for triangle_index in range(triangle_count):
+        for vertex_index in range(3):
+            for band_index in range(band_count):
+                triangle_band_energies[triangle_index, vertex_index, band_index] = (
+                    eig_flat[global_point_indices[triangle_index, vertex_index], band_index]
+                )
+
+    return triangle_band_energies
+
+
+@njit(cache=True)
+def _interpolate_local_values_numba(
+    interpolation_indices,
+    interpolation_weights,
+    flattened_features,
+    output_flat,
+) -> None:
+    local_point_count = interpolation_indices.shape[0]
+    feature_count = flattened_features.shape[1]
+
+    for local_index in range(local_point_count):
+        for stencil_index in range(4):
+            weight = interpolation_weights[local_index, stencil_index]
+            if weight == 0.0:
+                continue
+            output_index = interpolation_indices[local_index, stencil_index]
+            for feature_index in range(feature_count):
+                output_flat[output_index, feature_index] += (
+                    weight * flattened_features[local_index, feature_index]
+                )

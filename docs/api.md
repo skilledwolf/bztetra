@@ -17,6 +17,28 @@ functions below are grouped by workflow rather than by source file.
 
 ::: bztetra.integrated_density_of_states_weights
 
+## 2D Triangle Method
+
+Initial 2D support is intentionally narrower than the 3D path: the occupation
+and DOS family lives under `bztetra.twod`, while 2D response kernels remain
+pending.
+
+::: bztetra.twod.FermiEnergySolution
+
+::: bztetra.twod.occupation_weights
+
+::: bztetra.twod.solve_fermi_energy
+
+::: bztetra.twod.density_of_states_weights
+
+::: bztetra.twod.integrated_density_of_states_weights
+
+::: bztetra.twod.TriangleIntegrationMesh
+
+::: bztetra.twod.build_integration_mesh
+
+::: bztetra.twod.bilinear_interpolation_indices
+
 ## Response Setup
 
 ::: bztetra.PreparedResponseEvaluator
