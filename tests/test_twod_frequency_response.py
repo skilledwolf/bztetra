@@ -6,6 +6,7 @@ import importlib.util
 import numpy as np
 import pytest
 
+from bztetra.twod import fermi_golden_rule_weights
 from bztetra.twod._grids import interpolated_triangle_energies
 from bztetra.twod._grids import normalize_eigenvalues
 from bztetra.twod._response_kernels import _complex_polarization_triangle_weights
@@ -125,6 +126,7 @@ def test_twod_fermi_golden_rule_pair_parallel_kernel_matches_serial_local_mesh()
         occupied_triangles,
         target_triangles,
         sample_energies,
+        True,
         mesh.local_point_count,
         triangle_area,
     )
@@ -133,11 +135,37 @@ def test_twod_fermi_golden_rule_pair_parallel_kernel_matches_serial_local_mesh()
         occupied_triangles,
         target_triangles,
         sample_energies,
+        True,
         mesh.local_point_count,
         triangle_area,
     )
 
     np.testing.assert_allclose(pair_parallel, serial, rtol=1.0e-12, atol=1.0e-12)
+
+
+def test_twod_fermi_golden_rule_preserves_unsorted_energy_order() -> None:
+    reciprocal_vectors, occupied, target = synthetic_multiband_response_case(band_count=4)
+    energies = np.linspace(0.0, 1.1, 7, dtype=np.float64)
+    order = np.array([3, 0, 6, 2, 1, 5, 4], dtype=np.int64)
+
+    ordered = fermi_golden_rule_weights(
+        reciprocal_vectors,
+        occupied,
+        target,
+        energies,
+        weight_grid_shape=occupied.shape[:2],
+        method="linear",
+    )
+    shuffled = fermi_golden_rule_weights(
+        reciprocal_vectors,
+        occupied,
+        target,
+        energies[order],
+        weight_grid_shape=occupied.shape[:2],
+        method="linear",
+    )
+
+    np.testing.assert_allclose(shuffled, ordered[order], rtol=1.0e-12, atol=1.0e-12)
 
 
 def test_twod_complex_pair_parallel_kernel_matches_serial_local_mesh() -> None:

@@ -4,6 +4,7 @@ import numpy as np
 from numba import njit
 from numba import prange
 
+from ._triangle_kernels import active_open_energy_window
 from ._triangle_kernels import sort3
 
 
@@ -56,6 +57,7 @@ def _static_polarization_triangle_weights(
     weights = np.zeros(3, dtype=np.float64)
     polygon_a = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
     polygon_b = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
+    delta_vertices = np.empty(3, dtype=np.float64)
     sorted_order = np.empty(3, dtype=np.int64)
     sorted_delta = np.empty(3, dtype=np.float64)
     sorted_weights = np.empty(3, dtype=np.float64)
@@ -66,6 +68,7 @@ def _static_polarization_triangle_weights(
         triangle_area,
         polygon_a,
         polygon_b,
+        delta_vertices,
         sorted_order,
         sorted_delta,
         sorted_weights,
@@ -83,8 +86,10 @@ def _fermi_golden_rule_triangle_weights(
     target = np.asarray(target_vertices, dtype=np.float64)
     samples = np.asarray(energies, dtype=np.float64)
     weights = np.zeros((samples.size, 3), dtype=np.float64)
+    sample_energies_sorted = bool(np.all(samples[1:] >= samples[:-1]))
     polygon_a = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
     polygon_b = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
+    delta_vertices = np.empty(3, dtype=np.float64)
     sorted_order = np.empty(3, dtype=np.int64)
     sorted_delta = np.empty(3, dtype=np.float64)
     sorted_weights = np.empty(3, dtype=np.float64)
@@ -93,9 +98,11 @@ def _fermi_golden_rule_triangle_weights(
         occupied,
         target,
         samples,
+        sample_energies_sorted,
         triangle_area,
         polygon_a,
         polygon_b,
+        delta_vertices,
         sorted_order,
         sorted_delta,
         sorted_weights,
@@ -115,6 +122,7 @@ def _complex_polarization_triangle_weights(
     weights = np.zeros((samples.size, 3), dtype=np.complex128)
     polygon_a = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
     polygon_b = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
+    delta_vertices = np.empty(3, dtype=np.float64)
     sorted_order = np.empty(3, dtype=np.int64)
     sorted_delta = np.empty(3, dtype=np.float64)
     sorted_weights = np.empty(3, dtype=np.complex128)
@@ -126,6 +134,7 @@ def _complex_polarization_triangle_weights(
         triangle_area,
         polygon_a,
         polygon_b,
+        delta_vertices,
         sorted_order,
         sorted_delta,
         sorted_weights,
@@ -219,6 +228,7 @@ def _static_polarization_weights_on_local_mesh_numba(
     parent_weights = np.empty(3, dtype=np.float64)
     polygon_a = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
     polygon_b = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
+    delta_vertices = np.empty(3, dtype=np.float64)
     sorted_order = np.empty(3, dtype=np.int64)
     sorted_delta = np.empty(3, dtype=np.float64)
     sorted_weights = np.empty(3, dtype=np.float64)
@@ -235,6 +245,7 @@ def _static_polarization_weights_on_local_mesh_numba(
                     triangle_area,
                     polygon_a,
                     polygon_b,
+                    delta_vertices,
                     sorted_order,
                     sorted_delta,
                     sorted_weights,
@@ -269,6 +280,7 @@ def _static_polarization_weights_on_local_mesh_pair_parallel_numba(
         parent_weights = np.empty(3, dtype=np.float64)
         polygon_a = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
         polygon_b = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
+        delta_vertices = np.empty(3, dtype=np.float64)
         sorted_order = np.empty(3, dtype=np.int64)
         sorted_delta = np.empty(3, dtype=np.float64)
         sorted_weights = np.empty(3, dtype=np.float64)
@@ -283,6 +295,7 @@ def _static_polarization_weights_on_local_mesh_pair_parallel_numba(
                 triangle_area,
                 polygon_a,
                 polygon_b,
+                delta_vertices,
                 sorted_order,
                 sorted_delta,
                 sorted_weights,
@@ -303,6 +316,7 @@ def _fermi_golden_rule_weights_on_local_mesh_numba(
     occupied_triangles,
     target_triangles,
     sample_energies,
+    sample_energies_sorted,
     local_point_count,
     triangle_area,
 ):
@@ -316,6 +330,7 @@ def _fermi_golden_rule_weights_on_local_mesh_numba(
     parent_weights = np.empty((energy_count, 3), dtype=np.float64)
     polygon_a = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
     polygon_b = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
+    delta_vertices = np.empty(3, dtype=np.float64)
     sorted_order = np.empty(3, dtype=np.int64)
     sorted_delta = np.empty(3, dtype=np.float64)
     sorted_weights = np.empty(3, dtype=np.float64)
@@ -330,9 +345,11 @@ def _fermi_golden_rule_weights_on_local_mesh_numba(
                     occupied_vertices,
                     target_vertices,
                     sample_energies,
+                    sample_energies_sorted,
                     triangle_area,
                     polygon_a,
                     polygon_b,
+                    delta_vertices,
                     sorted_order,
                     sorted_delta,
                     sorted_weights,
@@ -355,6 +372,7 @@ def _fermi_golden_rule_weights_on_local_mesh_pair_parallel_numba(
     occupied_triangles,
     target_triangles,
     sample_energies,
+    sample_energies_sorted,
     local_point_count,
     triangle_area,
 ):
@@ -374,6 +392,7 @@ def _fermi_golden_rule_weights_on_local_mesh_pair_parallel_numba(
         parent_weights = np.empty((energy_count, 3), dtype=np.float64)
         polygon_a = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
         polygon_b = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
+        delta_vertices = np.empty(3, dtype=np.float64)
         sorted_order = np.empty(3, dtype=np.int64)
         sorted_delta = np.empty(3, dtype=np.float64)
         sorted_weights = np.empty(3, dtype=np.float64)
@@ -386,9 +405,11 @@ def _fermi_golden_rule_weights_on_local_mesh_pair_parallel_numba(
                 occupied_vertices,
                 target_vertices,
                 sample_energies,
+                sample_energies_sorted,
                 triangle_area,
                 polygon_a,
                 polygon_b,
+                delta_vertices,
                 sorted_order,
                 sorted_delta,
                 sorted_weights,
@@ -424,6 +445,7 @@ def _complex_polarization_weights_on_local_mesh_numba(
     parent_weights = np.empty((energy_count, 3), dtype=np.complex128)
     polygon_a = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
     polygon_b = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
+    delta_vertices = np.empty(3, dtype=np.float64)
     sorted_order = np.empty(3, dtype=np.int64)
     sorted_delta = np.empty(3, dtype=np.float64)
     sorted_weights = np.empty(3, dtype=np.complex128)
@@ -441,6 +463,7 @@ def _complex_polarization_weights_on_local_mesh_numba(
                     triangle_area,
                     polygon_a,
                     polygon_b,
+                    delta_vertices,
                     sorted_order,
                     sorted_delta,
                     sorted_weights,
@@ -482,6 +505,7 @@ def _complex_polarization_weights_on_local_mesh_pair_parallel_numba(
         parent_weights = np.empty((energy_count, 3), dtype=np.complex128)
         polygon_a = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
         polygon_b = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
+        delta_vertices = np.empty(3, dtype=np.float64)
         sorted_order = np.empty(3, dtype=np.int64)
         sorted_delta = np.empty(3, dtype=np.float64)
         sorted_weights = np.empty(3, dtype=np.complex128)
@@ -497,6 +521,7 @@ def _complex_polarization_weights_on_local_mesh_pair_parallel_numba(
                 triangle_area,
                 polygon_a,
                 polygon_b,
+                delta_vertices,
                 sorted_order,
                 sorted_delta,
                 sorted_weights,
@@ -613,6 +638,7 @@ def _static_polarization_parent_weights_numba(
     triangle_area,
     polygon_a,
     polygon_b,
+    delta_vertices,
     sorted_order,
     sorted_delta,
     sorted_weights,
@@ -634,6 +660,7 @@ def _static_polarization_parent_weights_numba(
         triangle_area,
         target_vertices,
         occupied_vertices,
+        delta_vertices,
         sorted_order,
         sorted_delta,
         sorted_weights,
@@ -646,9 +673,11 @@ def _fermi_golden_rule_parent_weights_numba(
     occupied_vertices,
     target_vertices,
     sample_energies,
+    sample_energies_sorted,
     triangle_area,
     polygon_a,
     polygon_b,
+    delta_vertices,
     sorted_order,
     sorted_delta,
     sorted_weights,
@@ -671,6 +700,8 @@ def _fermi_golden_rule_parent_weights_numba(
         target_vertices,
         occupied_vertices,
         sample_energies,
+        sample_energies_sorted,
+        delta_vertices,
         sorted_order,
         sorted_delta,
         sorted_weights,
@@ -686,6 +717,7 @@ def _complex_polarization_parent_weights_numba(
     triangle_area,
     polygon_a,
     polygon_b,
+    delta_vertices,
     sorted_order,
     sorted_delta,
     sorted_weights,
@@ -708,6 +740,7 @@ def _complex_polarization_parent_weights_numba(
         target_vertices,
         occupied_vertices,
         sample_energies,
+        delta_vertices,
         sorted_order,
         sorted_delta,
         sorted_weights,
@@ -822,11 +855,11 @@ def _accumulate_polygon_static_polarization(
     triangle_area,
     target_vertices,
     occupied_vertices,
+    delta_vertices,
     sorted_order,
     sorted_delta,
     sorted_weights,
 ) -> None:
-    delta_vertices = np.empty(3, dtype=np.float64)
     area_tolerance = triangle_area * GEOMETRY_EPS
 
     for polygon_index in range(1, polygon_count - 1):
@@ -870,11 +903,12 @@ def _accumulate_polygon_fermi_golden_rule(
     target_vertices,
     occupied_vertices,
     sample_energies,
+    sample_energies_sorted,
+    delta_vertices,
     sorted_order,
     sorted_delta,
     sorted_weights,
 ) -> None:
-    delta_vertices = np.empty(3, dtype=np.float64)
     area_tolerance = triangle_area * GEOMETRY_EPS
 
     for polygon_index in range(1, polygon_count - 1):
@@ -891,7 +925,13 @@ def _accumulate_polygon_fermi_golden_rule(
         sort3(delta_vertices, sorted_order, sorted_delta)
         _snap_sorted_delta(sorted_delta)
 
-        for energy_index in range(sample_energies.shape[0]):
+        start, end = active_open_energy_window(
+            sample_energies,
+            sample_energies_sorted,
+            sorted_delta[0],
+            sorted_delta[2],
+        )
+        for energy_index in range(start, end):
             _dos_basis_sorted_weights_numba(
                 sorted_weights,
                 sorted_delta[0],
@@ -919,11 +959,11 @@ def _accumulate_polygon_complex_polarization(
     target_vertices,
     occupied_vertices,
     sample_energies,
+    delta_vertices,
     sorted_order,
     sorted_delta,
     sorted_weights,
 ) -> None:
-    delta_vertices = np.empty(3, dtype=np.float64)
     area_tolerance = triangle_area * GEOMETRY_EPS
 
     for polygon_index in range(1, polygon_count - 1):

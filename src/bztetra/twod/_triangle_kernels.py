@@ -68,6 +68,70 @@ def fill_dos_vertex_weights(
 
 
 @njit(cache=True)
+def active_open_energy_window(
+    sample_energies,
+    sample_energies_sorted: bool,
+    lower_exclusive: float,
+    upper_exclusive: float,
+) -> tuple[int, int]:
+    energy_count = sample_energies.shape[0]
+    if not sample_energies_sorted:
+        return 0, energy_count
+
+    left = 0
+    right = energy_count
+    while left < right:
+        middle = (left + right) // 2
+        if sample_energies[middle] <= lower_exclusive:
+            left = middle + 1
+        else:
+            right = middle
+    start = left
+
+    left = start
+    right = energy_count
+    while left < right:
+        middle = (left + right) // 2
+        if sample_energies[middle] < upper_exclusive:
+            left = middle + 1
+        else:
+            right = middle
+    return start, left
+
+
+@njit(cache=True)
+def occupation_energy_windows(
+    sample_energies,
+    sample_energies_sorted: bool,
+    lower_exclusive: float,
+    upper_inclusive: float,
+) -> tuple[int, int]:
+    energy_count = sample_energies.shape[0]
+    if not sample_energies_sorted:
+        return 0, energy_count
+
+    left = 0
+    right = energy_count
+    while left < right:
+        middle = (left + right) // 2
+        if sample_energies[middle] <= lower_exclusive:
+            left = middle + 1
+        else:
+            right = middle
+    start = left
+
+    left = start
+    right = energy_count
+    while left < right:
+        middle = (left + right) // 2
+        if sample_energies[middle] < upper_inclusive:
+            left = middle + 1
+        else:
+            right = middle
+    return start, left
+
+
+@njit(cache=True)
 def _fill_low_occupation_weights(vertex_weights, sorted_order, strict_energies, fermi_energy) -> None:
     e0 = strict_energies[0]
     e1 = strict_energies[1]

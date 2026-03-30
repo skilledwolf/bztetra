@@ -322,12 +322,14 @@ def _fermi_golden_rule_weights_on_local_mesh(
     sample_energies: FloatArray,
 ) -> FloatArray:
     pair_count = occupied_triangles.shape[2] * target_triangles.shape[2]
+    sample_energies_sorted = bool(np.all(sample_energies[1:] >= sample_energies[:-1]))
     if pair_count >= PAIR_PARALLEL_THRESHOLD and target_triangles.shape[2] >= PAIR_PARALLEL_TARGET_THRESHOLD:
         return _fermi_golden_rule_weights_on_local_mesh_pair_parallel_numba(
             mesh.local_point_indices,
             occupied_triangles,
             target_triangles,
             sample_energies,
+            sample_energies_sorted,
             mesh.local_point_count,
             _triangle_area(mesh),
         )
@@ -336,6 +338,7 @@ def _fermi_golden_rule_weights_on_local_mesh(
         occupied_triangles,
         target_triangles,
         sample_energies,
+        sample_energies_sorted,
         mesh.local_point_count,
         _triangle_area(mesh),
     )

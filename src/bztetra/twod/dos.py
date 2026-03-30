@@ -9,8 +9,10 @@ from ._grids import interpolate_local_values
 from ._grids import interpolated_triangle_energies
 from ._grids import normalize_eigenvalues
 from ._grids import normalize_energy_samples
+from ._triangle_kernels import active_open_energy_window
 from ._triangle_kernels import fill_dos_vertex_weights
 from ._triangle_kernels import fill_occupation_vertex_weights
+from ._triangle_kernels import occupation_energy_windows
 from ._triangle_kernels import sort3
 from .geometry import cached_integration_mesh
 from .geometry import TriangleIntegrationMesh
@@ -71,10 +73,12 @@ def _dos_weights_on_local_mesh(
     sample_energies: FloatArray,
 ) -> FloatArray:
     normalization = 2 * int(np.prod(mesh.energy_grid_shape, dtype=np.int64))
+    sample_energies_sorted = bool(np.all(sample_energies[1:] >= sample_energies[:-1]))
     return _dos_weights_on_local_mesh_numba(
         mesh.local_point_indices,
         triangle_band_energies,
         sample_energies,
+        sample_energies_sorted,
         mesh.local_point_count,
         normalization,
     )
@@ -86,10 +90,12 @@ def _intdos_weights_on_local_mesh(
     sample_energies: FloatArray,
 ) -> FloatArray:
     normalization = 2 * int(np.prod(mesh.energy_grid_shape, dtype=np.int64))
+    sample_energies_sorted = bool(np.all(sample_energies[1:] >= sample_energies[:-1]))
     return _intdos_weights_on_local_mesh_numba(
         mesh.local_point_indices,
         triangle_band_energies,
         sample_energies,
+        sample_energies_sorted,
         mesh.local_point_count,
         normalization,
     )
@@ -107,6 +113,7 @@ def _dos_weights_on_local_mesh_numba(
     local_point_indices,
     triangle_band_energies,
     sample_energies,
+    sample_energies_sorted,
     local_point_count,
     normalization,
 ) -> FloatArray:
@@ -127,7 +134,13 @@ def _dos_weights_on_local_mesh_numba(
                 sorted_order,
                 sorted_energies,
             )
-            for energy_index in range(energy_count):
+            start, end = active_open_energy_window(
+                sample_energies,
+                sample_energies_sorted,
+                sorted_energies[0],
+                sorted_energies[2],
+            )
+            for energy_index in range(start, end):
                 fill_dos_vertex_weights(
                     vertex_weights,
                     sorted_order,
@@ -151,6 +164,7 @@ def _intdos_weights_on_local_mesh_numba(
     local_point_indices,
     triangle_band_energies,
     sample_energies,
+    sample_energies_sorted,
     local_point_count,
     normalization,
 ) -> FloatArray:
@@ -171,6 +185,39 @@ def _intdos_weights_on_local_mesh_numba(
                 sorted_order,
                 sorted_energies,
             )
+            varying_start, full_start = occupation_energy_windows(
+                sample_energies,
+                sample_energies_sorted,
+                sorted_energies[0],
+                sorted_energies[2],
+            )
+
+            if sample_energies_sorted:
+                for energy_index in range(varying_start, full_start):
+                    fill_occupation_vertex_weights(
+                        vertex_weights,
+                        sorted_order,
+                        sorted_energies,
+                        sample_energies[energy_index],
+                        strict_energies,
+                    )
+                    for vertex_index in range(3):
+                        local_weights[
+                            local_point_indices[triangle_index, vertex_index],
+                            energy_index,
+                            band_index,
+                        ] += vertex_weights[vertex_index]
+
+                vertex_weights[:] = 1.0 / 3.0
+                for energy_index in range(full_start, energy_count):
+                    for vertex_index in range(3):
+                        local_weights[
+                            local_point_indices[triangle_index, vertex_index],
+                            energy_index,
+                            band_index,
+                        ] += vertex_weights[vertex_index]
+                continue
+
             for energy_index in range(energy_count):
                 fill_occupation_vertex_weights(
                     vertex_weights,

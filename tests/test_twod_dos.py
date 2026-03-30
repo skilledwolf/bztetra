@@ -50,3 +50,26 @@ def test_twod_integrated_density_of_states_tracks_exact_free_electron_curve() ->
         rtol=4.0e-2,
         atol=2.0e-3,
     )
+
+
+def test_twod_dos_paths_preserve_unsorted_energy_order() -> None:
+    reciprocal_vectors, eigenvalues = free_electron_case((48, 48))
+    sample_energies = free_electron_energy_points()
+    order = np.array([3, 0, 5, 1, 4, 2], dtype=np.int64)
+
+    ordered_dos = density_of_states_weights(reciprocal_vectors, eigenvalues, sample_energies)
+    shuffled_dos = density_of_states_weights(reciprocal_vectors, eigenvalues, sample_energies[order])
+    np.testing.assert_allclose(shuffled_dos, ordered_dos[order], rtol=1.0e-12, atol=1.0e-12)
+
+    ordered_intdos = integrated_density_of_states_weights(reciprocal_vectors, eigenvalues, sample_energies)
+    shuffled_intdos = integrated_density_of_states_weights(
+        reciprocal_vectors,
+        eigenvalues,
+        sample_energies[order],
+    )
+    np.testing.assert_allclose(
+        shuffled_intdos,
+        ordered_intdos[order],
+        rtol=1.0e-12,
+        atol=1.0e-12,
+    )
