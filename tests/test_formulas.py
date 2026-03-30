@@ -3,9 +3,9 @@ import math
 import numpy as np
 import pytest
 
-from tetrabz.formulas import simplex_affine_coefficients
-from tetrabz.formulas import small_tetrahedron_cut
-from tetrabz.formulas import triangle_cut
+from bztetra.formulas import simplex_affine_coefficients
+from bztetra.formulas import small_tetrahedron_cut
+from bztetra.formulas import triangle_cut
 
 
 def test_simplex_affine_coefficients_match_hand_computed_entries() -> None:

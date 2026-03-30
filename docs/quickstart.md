@@ -1,7 +1,7 @@
-# tetrabz Quickstart
+# bztetra Quickstart
 
 This is the shortest path from "I have band energies on a regular k-grid" to a
-correct `tetrabz` call.
+correct `bztetra` call.
 
 Until the first full public release, validate important production calculations
 against the original
@@ -43,7 +43,7 @@ same as the eigenvalue grid `(nx, ny, nz)`.
 
 ```python
 import numpy as np
-from tetrabz import density_of_states_weights
+from bztetra import density_of_states_weights
 
 bvec = 2.0 * np.pi * np.eye(3)
 nx = ny = nz = 16
@@ -69,7 +69,7 @@ integrating.
 
 ```python
 import numpy as np
-from tetrabz import prepare_response_evaluator
+from bztetra import prepare_response_evaluator
 
 bvec = 2.0 * np.pi * np.eye(3)
 occupied = np.random.default_rng(0).normal(size=(16, 16, 16, 3))

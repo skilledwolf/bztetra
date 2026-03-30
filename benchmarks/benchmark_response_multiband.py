@@ -5,9 +5,9 @@ import time
 
 import numpy as np
 
-from tetrabz import fermi_golden_rule_weights
-from tetrabz import complex_frequency_polarization_weights
-from tetrabz import prepare_response_evaluator
+from bztetra import fermi_golden_rule_weights
+from bztetra import complex_frequency_polarization_weights
+from bztetra import prepare_response_evaluator
 
 
 FERMI_ENERGY = 0.5

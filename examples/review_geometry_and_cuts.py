@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import numpy as np
 
-from tetrabz import build_integration_mesh
-from tetrabz import solve_fermi_energy
-from tetrabz import occupation_weights
-from tetrabz import small_tetrahedron_cut
-from tetrabz import triangle_cut
+from bztetra import build_integration_mesh
+from bztetra import solve_fermi_energy
+from bztetra import occupation_weights
+from bztetra import small_tetrahedron_cut
+from bztetra import triangle_cut
 
 
 def main() -> None:

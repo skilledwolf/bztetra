@@ -1,9 +1,9 @@
 import numpy as np
 
-from tetrabz import density_of_states_weights
-from tetrabz import solve_fermi_energy
-from tetrabz import integrated_density_of_states_weights
-from tetrabz import occupation_weights
+from bztetra import density_of_states_weights
+from bztetra import solve_fermi_energy
+from bztetra import integrated_density_of_states_weights
+from bztetra import occupation_weights
 from tests.legacy_cases import brillouin_zone_volume
 from tests.legacy_cases import cubic_tight_binding_band
 from tests.legacy_cases import exact_free_electron_dos_weighted_integrals

@@ -5,7 +5,7 @@ import time
 
 import numpy as np
 
-from tetrabz import static_polarization_weights
+from bztetra import static_polarization_weights
 
 
 FERMI_ENERGY = 0.5

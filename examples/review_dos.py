@@ -4,8 +4,8 @@ import math
 
 import numpy as np
 
-from tetrabz import density_of_states_weights
-from tetrabz import integrated_density_of_states_weights
+from bztetra import density_of_states_weights
+from bztetra import integrated_density_of_states_weights
 
 
 def main() -> None:

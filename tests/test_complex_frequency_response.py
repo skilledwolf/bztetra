@@ -1,6 +1,6 @@
 import numpy as np
 
-from tetrabz import complex_frequency_polarization_weights
+from bztetra import complex_frequency_polarization_weights
 from tests.legacy_cases import brillouin_zone_volume
 from tests.legacy_cases import exact_complex_frequency_polarization_constant_gap_channels
 from tests.legacy_cases import exact_complex_frequency_polarization_weighted_integrals

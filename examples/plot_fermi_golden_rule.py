@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
-from tetrabz import fermi_golden_rule_weights
+from bztetra import fermi_golden_rule_weights
 
 try:
     import matplotlib

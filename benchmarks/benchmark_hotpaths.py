@@ -5,15 +5,15 @@ import time
 
 import numpy as np
 
-from tetrabz import nesting_function_weights
-from tetrabz import phase_space_overlap_weights
-from tetrabz import density_of_states_weights
-from tetrabz import fermi_golden_rule_weights
-from tetrabz import integrated_density_of_states_weights
-from tetrabz import occupation_weights
-from tetrabz import complex_frequency_polarization_weights
-from tetrabz import static_polarization_weights
-from tetrabz import prepare_response_evaluator
+from bztetra import nesting_function_weights
+from bztetra import phase_space_overlap_weights
+from bztetra import density_of_states_weights
+from bztetra import fermi_golden_rule_weights
+from bztetra import integrated_density_of_states_weights
+from bztetra import occupation_weights
+from bztetra import complex_frequency_polarization_weights
+from bztetra import static_polarization_weights
+from bztetra import prepare_response_evaluator
 
 
 FERMI_ENERGY = 0.5
@@ -226,7 +226,7 @@ def _centered_fractional_kpoint(
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Benchmark the current tetrabz hot paths on a free-electron workload.")
+    parser = argparse.ArgumentParser(description="Benchmark the current bztetra hot paths on a free-electron workload.")
     parser.add_argument("--grid", type=int, default=24, help="Cubic grid size to benchmark (default: 24)")
     parser.add_argument("--energy-count", type=int, default=16, help="Number of DOS sample energies (default: 16)")
     parser.add_argument("--q-value", type=float, default=2.0, help="Momentum transfer for the Lindhard benchmark (default: 2.0)")

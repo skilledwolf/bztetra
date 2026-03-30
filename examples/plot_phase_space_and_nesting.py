@@ -5,8 +5,8 @@ from pathlib import Path
 
 import numpy as np
 
-from tetrabz import nesting_function_weights
-from tetrabz import phase_space_overlap_weights
+from bztetra import nesting_function_weights
+from bztetra import phase_space_overlap_weights
 
 try:
     import matplotlib
@@ -132,7 +132,7 @@ def build_figure(
     figure, axes = plt.subplots(1, 2, figsize=(12.4, 5.4), sharex=False)
 
     axes[0].plot(Q_DBLSTEP, dblstep_exact, color="#111111", linewidth=2.6, label="Exact overlap fraction")
-    axes[0].scatter(Q_DBLSTEP, dblstep_curve, color="#0A9396", s=24, label="tetrabz (32^3)")
+    axes[0].scatter(Q_DBLSTEP, dblstep_curve, color="#0A9396", s=24, label="bztetra (32^3)")
     axes[0].axvline(2.0, color="#AE2012", linewidth=1.2, linestyle=":")
     axes[0].grid(alpha=0.2)
     axes[0].set_title("Phase-Space Overlap Weights")
@@ -150,7 +150,7 @@ def build_figure(
     )
 
     axes[1].plot(Q_DBLDELTA, dbldelta_exact, color="#111111", linewidth=2.6, label="Exact normalized shell weight")
-    axes[1].scatter(Q_DBLDELTA, dbldelta_curve, color="#CA6702", s=24, label="tetrabz (32^3)")
+    axes[1].scatter(Q_DBLDELTA, dbldelta_curve, color="#CA6702", s=24, label="bztetra (32^3)")
     axes[1].axvline(2.0, color="#AE2012", linewidth=1.2, linestyle=":")
     axes[1].grid(alpha=0.2)
     axes[1].set_title("Nesting Function Weights")

@@ -5,7 +5,7 @@ from pathlib import Path
 
 import numpy as np
 
-from tetrabz import complex_frequency_polarization_weights
+from bztetra import complex_frequency_polarization_weights
 
 try:
     import matplotlib

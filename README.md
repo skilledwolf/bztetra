@@ -1,6 +1,6 @@
-# tetrabz
+# bztetra
 
-`tetrabz` is a Python + Numba package for single-process tetrahedron
+`bztetra` is a Python + Numba package for single-process tetrahedron
 integration on regular k-grids.
 
 It is aimed at users who already have band energies on a regular mesh and want
@@ -8,7 +8,7 @@ k-resolved weights for occupations, DOS, and Lindhard-style response functions
 without going through the legacy `libtetrabz` wrapper.
 
 > [!WARNING]
-> `tetrabz` is still pre-release. Until the first full public release, users
+> `bztetra` is still pre-release. Until the first full public release, users
 > should validate important production results against the original
 > [`libtetrabz`](https://github.com/mitsuaki1987/libtetrabz) implementation or
 > run the parity checks described in [docs/validation.md](docs/validation.md).
@@ -23,13 +23,13 @@ without going through the legacy `libtetrabz` wrapper.
 Requires Python 3.11+.
 
 ```bash
-pip install tetrabz
+pip install bztetra
 ```
 
 Plotting examples use Matplotlib:
 
 ```bash
-pip install "tetrabz[plot]"
+pip install "bztetra[plot]"
 ```
 
 From a source checkout:
@@ -42,7 +42,7 @@ pip install .
 
 ```python
 import numpy as np
-from tetrabz import density_of_states_weights
+from bztetra import density_of_states_weights
 
 bvec = 2.0 * np.pi * np.eye(3)
 nx = ny = nz = 16
@@ -90,7 +90,7 @@ selection, and short usage patterns.
 ## Examples
 
 - [docs/quickstart.md](docs/quickstart.md): the shortest path from eigenvalues
-  on a regular grid to a correct `tetrabz` call.
+  on a regular grid to a correct `bztetra` call.
 - [examples/plot_tight_binding_dos.py](examples/plot_tight_binding_dos.py):
   cubic tight-binding DOS figure.
 - [examples/review_occupancy.py](examples/review_occupancy.py): occupation
@@ -100,16 +100,16 @@ selection, and short usage patterns.
 
 ## Validation
 
-`tetrabz` is checked against legacy shell matrices, direct parity with the
+`bztetra` is checked against legacy shell matrices, direct parity with the
 legacy `libtetrabz` Python wrapper, and analytic reference cases. See
 [docs/validation.md](docs/validation.md) for the exact coverage and
 reproduction commands.
 
 ## Acknowledgement
 
-`tetrabz` is a clean-room Python + Numba port informed by the original
+`bztetra` is a clean-room Python + Numba port informed by the original
 [`libtetrabz`](https://github.com/mitsuaki1987/libtetrabz) project by Mitsuaki
-Kawamura and collaborators. If `tetrabz` is useful in research, users should
+Kawamura and collaborators. If `bztetra` is useful in research, users should
 also acknowledge the original method and implementation:
 
 - M. Kawamura, Y. Gohda, and S. Tsuneyuki, "Improved tetrahedron method for the

@@ -1,10 +1,10 @@
 import numpy as np
 
-from tetrabz.geometry import build_integration_mesh
-from tetrabz.geometry import cached_integration_mesh
-from tetrabz.geometry import tetrahedron_offsets
-from tetrabz.geometry import tetrahedron_weight_matrix
-from tetrabz.geometry import trilinear_interpolation_indices
+from bztetra.geometry import build_integration_mesh
+from bztetra.geometry import cached_integration_mesh
+from bztetra.geometry import tetrahedron_offsets
+from bztetra.geometry import tetrahedron_weight_matrix
+from bztetra.geometry import trilinear_interpolation_indices
 
 
 def test_linear_weight_matrix_matches_legacy_identity_pattern() -> None:

@@ -3,14 +3,14 @@ requires = ["hatch-vcs>=0.4", "hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
-name = "tetrabz"
+name = "bztetra"
 dynamic = ["version"]
 description = "Python and Numba port of libtetrabz-style tetrahedron integration routines."
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [
-  {name = "tetrabz contributors"},
+  {name = "bztetra contributors"},
 ]
 dependencies = [
   "numba>=0.61",
@@ -28,7 +28,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/tetrabz"]
+packages = ["src/bztetra"]
 
 [tool.hatch.version]
 source = "vcs"

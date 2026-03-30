@@ -1,19 +1,19 @@
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
 
-from tetrabz import __version__
-from tetrabz import PreparedResponseEvaluator
-from tetrabz import build_integration_mesh
-from tetrabz import occupation_weights
-from tetrabz import complex_frequency_polarization_weights
-from tetrabz import prepare_response_evaluator
-from tetrabz import small_tetrahedron_cut
+from bztetra import __version__
+from bztetra import PreparedResponseEvaluator
+from bztetra import build_integration_mesh
+from bztetra import occupation_weights
+from bztetra import complex_frequency_polarization_weights
+from bztetra import prepare_response_evaluator
+from bztetra import small_tetrahedron_cut
 
 
 def test_package_version_is_exposed() -> None:
     assert __version__
     try:
-        installed_version = package_version("tetrabz")
+        installed_version = package_version("bztetra")
     except PackageNotFoundError:
         assert __version__ == "0+unknown"
     else:

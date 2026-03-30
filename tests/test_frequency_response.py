@@ -1,6 +1,6 @@
 import numpy as np
 
-from tetrabz import fermi_golden_rule_weights
+from bztetra import fermi_golden_rule_weights
 from tests.legacy_cases import brillouin_zone_volume
 from tests.legacy_cases import exact_fermi_golden_rule_weighted_integrals
 from tests.legacy_cases import fermi_golden_rule_energy_points

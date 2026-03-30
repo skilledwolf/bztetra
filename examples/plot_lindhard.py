@@ -5,8 +5,8 @@ from pathlib import Path
 
 import numpy as np
 
-from tetrabz import density_of_states_weights
-from tetrabz import static_polarization_weights
+from bztetra import density_of_states_weights
+from bztetra import static_polarization_weights
 
 try:
     import matplotlib

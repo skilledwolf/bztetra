@@ -1,6 +1,6 @@
 # Validation
 
-`tetrabz` is release-checked against three reference layers:
+`bztetra` is release-checked against three reference layers:
 
 1. Legacy shell-matrix parity for the `8^3`, `16^3 -> 8^3`, and `16^3` cases.
 2. Direct parity against the installed legacy `libtetrabz` Python wrapper on
@@ -47,7 +47,7 @@ response workflows.
 
 ### Direct Wrapper Parity
 
-`tests/test_legacy_wrapper_parity.py` compares `tetrabz` against the installed
+`tests/test_legacy_wrapper_parity.py` compares `bztetra` against the installed
 legacy `libtetrabz` Python wrapper on same-grid outputs for the public
 computational surface.
 
@@ -66,14 +66,14 @@ checks in addition to output-shape and dtype validation.
 
 ## Original Project
 
-`tetrabz` is a clean-room port informed by the original `libtetrabz` project by
+`bztetra` is a clean-room port informed by the original `libtetrabz` project by
 Mitsuaki Kawamura and collaborators. For original source, manuals, and the
 legacy Python wrapper, see:
 
 - [github.com/mitsuaki1987/libtetrabz](https://github.com/mitsuaki1987/libtetrabz)
 - [mitsuaki1987.github.io/libtetrabz/python/_build/html/index.html](https://mitsuaki1987.github.io/libtetrabz/python/_build/html/index.html)
 
-If you use `tetrabz` in research, also cite the original method paper:
+If you use `bztetra` in research, also cite the original method paper:
 
 - M. Kawamura, Y. Gohda, and S. Tsuneyuki, "Improved tetrahedron method for the
   Brillouin-zone integration applicable to response functions,"

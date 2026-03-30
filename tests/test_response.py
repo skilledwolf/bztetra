@@ -2,17 +2,17 @@ from pathlib import Path
 
 import numpy as np
 
-from tetrabz import nesting_function_weights
-from tetrabz import phase_space_overlap_weights
-from tetrabz import density_of_states_weights
-from tetrabz import static_polarization_weights
-from tetrabz._grids import interpolate_local_values
-from tetrabz._grids import interpolated_tetrahedron_energies
-from tetrabz._grids import normalize_eigenvalues
-from tetrabz.geometry import build_integration_mesh
-from tetrabz._response_common import _unflatten_pair_band_last
-from tetrabz._response_reference import _accumulate_small_tetra_polstat_outer
-from tetrabz._response_reference import _polstat_secondary_weights
+from bztetra import nesting_function_weights
+from bztetra import phase_space_overlap_weights
+from bztetra import density_of_states_weights
+from bztetra import static_polarization_weights
+from bztetra._grids import interpolate_local_values
+from bztetra._grids import interpolated_tetrahedron_energies
+from bztetra._grids import normalize_eigenvalues
+from bztetra.geometry import build_integration_mesh
+from bztetra._response_common import _unflatten_pair_band_last
+from bztetra._response_reference import _accumulate_small_tetra_polstat_outer
+from bztetra._response_reference import _polstat_secondary_weights
 from tests.legacy_cases import brillouin_zone_volume
 from tests.legacy_cases import exact_nesting_function_weighted_integrals
 from tests.legacy_cases import exact_phase_space_overlap_weighted_integrals

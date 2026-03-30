@@ -7,7 +7,7 @@ from dataclasses import dataclass
 import libtetrabz
 import numpy as np
 
-import tetrabz
+import bztetra
 
 
 FloatArray = np.ndarray
@@ -30,7 +30,7 @@ def main() -> None:
 
     bvec, scalar_eigenvalues = _free_electron_case(grid_shape)
     _, occupied_eigenvalues, target_eigenvalues = _free_electron_response_case(grid_shape)
-    prepared_response = tetrabz.prepare_response_evaluator(
+    prepared_response = bztetra.prepare_response_evaluator(
         bvec,
         occupied_eigenvalues - 0.5,
         target_eigenvalues - 0.5,
@@ -47,7 +47,7 @@ def main() -> None:
         _benchmark_array_case(
             "occupation_weights",
             lambda: libtetrabz.occ(bvec, scalar_eigenvalues - 0.5),
-            lambda: tetrabz.occupation_weights(
+            lambda: bztetra.occupation_weights(
                 bvec,
                 scalar_eigenvalues - 0.5,
                 weight_grid_shape=grid_shape,
@@ -65,7 +65,7 @@ def main() -> None:
         _benchmark_array_case(
             "density_of_states_weights",
             lambda: libtetrabz.dos(bvec, scalar_eigenvalues, dos_energies),
-            lambda: tetrabz.density_of_states_weights(
+            lambda: bztetra.density_of_states_weights(
                 bvec,
                 scalar_eigenvalues,
                 dos_energies,
@@ -78,7 +78,7 @@ def main() -> None:
         _benchmark_array_case(
             "integrated_density_of_states_weights",
             lambda: libtetrabz.intdos(bvec, scalar_eigenvalues, dos_energies),
-            lambda: tetrabz.integrated_density_of_states_weights(
+            lambda: bztetra.integrated_density_of_states_weights(
                 bvec,
                 scalar_eigenvalues,
                 dos_energies,
@@ -91,7 +91,7 @@ def main() -> None:
         _benchmark_array_case(
             "phase_space_overlap_weights",
             lambda: libtetrabz.dblstep(bvec, occupied_eigenvalues - 0.5, target_eigenvalues - 0.5),
-            lambda: tetrabz.phase_space_overlap_weights(
+            lambda: bztetra.phase_space_overlap_weights(
                 bvec,
                 occupied_eigenvalues - 0.5,
                 target_eigenvalues - 0.5,
@@ -106,7 +106,7 @@ def main() -> None:
         _benchmark_array_case(
             "nesting_function_weights",
             lambda: libtetrabz.dbldelta(bvec, occupied_eigenvalues - 0.5, target_eigenvalues - 0.5),
-            lambda: tetrabz.nesting_function_weights(
+            lambda: bztetra.nesting_function_weights(
                 bvec,
                 occupied_eigenvalues - 0.5,
                 target_eigenvalues - 0.5,
@@ -121,7 +121,7 @@ def main() -> None:
         _benchmark_array_case(
             "static_polarization_weights",
             lambda: libtetrabz.polstat(bvec, occupied_eigenvalues - 0.5, target_eigenvalues - 0.5),
-            lambda: tetrabz.static_polarization_weights(
+            lambda: bztetra.static_polarization_weights(
                 bvec,
                 occupied_eigenvalues - 0.5,
                 target_eigenvalues - 0.5,
@@ -136,7 +136,7 @@ def main() -> None:
         _benchmark_array_case(
             "fermi_golden_rule_weights",
             lambda: libtetrabz.fermigr(bvec, occupied_eigenvalues - 0.5, target_eigenvalues - 0.5, fermi_golden_rule_energies),
-            lambda: tetrabz.fermi_golden_rule_weights(
+            lambda: bztetra.fermi_golden_rule_weights(
                 bvec,
                 occupied_eigenvalues - 0.5,
                 target_eigenvalues - 0.5,
@@ -152,7 +152,7 @@ def main() -> None:
         _benchmark_array_case(
             "complex_frequency_polarization_weights",
             lambda: libtetrabz.polcmplx(bvec, occupied_eigenvalues - 0.5, target_eigenvalues - 0.5, complex_frequency_energies),
-            lambda: tetrabz.complex_frequency_polarization_weights(
+            lambda: bztetra.complex_frequency_polarization_weights(
                 bvec,
                 occupied_eigenvalues - 0.5,
                 target_eigenvalues - 0.5,
@@ -172,7 +172,7 @@ def main() -> None:
     print("Legacy reference: libtetrabz 0.1.2")
     print()
     print(
-        f"{'case':<38} {'legacy(s)':>10} {'tetrabz(s)':>11} {'prepared(s)':>12} "
+        f"{'case':<38} {'legacy(s)':>10} {'bztetra(s)':>11} {'prepared(s)':>12} "
         f"{'speedup':>9} {'max|diff|':>12}"
     )
     for result in results:
@@ -236,7 +236,7 @@ def _benchmark_fermieng_case(
     repeats: int,
 ) -> BenchmarkResult:
     legacy_ef, legacy_weights, legacy_iterations = libtetrabz.fermieng(bvec, eigenvalues, electrons_per_spin)
-    port_result = tetrabz.solve_fermi_energy(
+    port_result = bztetra.solve_fermi_energy(
         bvec,
         eigenvalues,
         electrons_per_spin,
@@ -246,7 +246,7 @@ def _benchmark_fermieng_case(
 
     legacy_seconds = _time_best(lambda: libtetrabz.fermieng(bvec, eigenvalues, electrons_per_spin), repeats=repeats)
     port_seconds = _time_best(
-        lambda: tetrabz.solve_fermi_energy(
+        lambda: bztetra.solve_fermi_energy(
             bvec,
             eigenvalues,
             electrons_per_spin,
@@ -356,7 +356,7 @@ def _centered_fractional_kpoint(
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Benchmark tetrabz against the published libtetrabz wrapper on the legacy free-electron workloads."
+        description="Benchmark bztetra against the published libtetrabz wrapper on the legacy free-electron workloads."
     )
     parser.add_argument("--grid", type=int, default=8, help="Cubic grid size used for the comparison workloads (default: 8)")
     parser.add_argument("--repeats", type=int, default=3, help="How many warm runs to time per implementation (default: 3)")

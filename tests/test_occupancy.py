@@ -1,7 +1,7 @@
 import numpy as np
 
-from tetrabz import solve_fermi_energy
-from tetrabz import occupation_weights
+from bztetra import solve_fermi_energy
+from bztetra import occupation_weights
 from tests.legacy_cases import brillouin_zone_volume
 from tests.legacy_cases import legacy_free_electron_case
 

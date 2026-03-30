@@ -26,7 +26,7 @@ from .formulas import triangle_cut
 from .geometry import trilinear_interpolation_indices
 
 try:
-    __version__ = package_version("tetrabz")
+    __version__ = package_version("bztetra")
 except PackageNotFoundError:
     __version__ = "0+unknown"
 

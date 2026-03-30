@@ -4,8 +4,8 @@ import math
 
 import numpy as np
 
-from tetrabz import solve_fermi_energy
-from tetrabz import occupation_weights
+from bztetra import solve_fermi_energy
+from bztetra import occupation_weights
 
 
 def build_review_system(grid_size: int = 8) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
