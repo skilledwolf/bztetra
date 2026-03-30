@@ -1,6 +1,10 @@
 """Modern Python port of the legacy libtetrabz tetrahedron routines."""
 
 from ._version import __version__
+from .dos import density_of_states_weights
+from .dos import dos
+from .dos import integrated_density_of_states_weights
+from .dos import intdos
 from .formulas import SimplexCut
 from .geometry import IntegrationMesh
 from .geometry import build_integration_mesh
@@ -20,7 +24,11 @@ __all__ = [
     "SimplexCut",
     "__version__",
     "build_integration_mesh",
+    "density_of_states_weights",
+    "dos",
     "fermieng",
+    "integrated_density_of_states_weights",
+    "intdos",
     "occ",
     "occupation_weights",
     "simplex_affine_coefficients",

@@ -38,3 +38,10 @@ system, run:
 ```bash
 .venv/bin/python examples/review_occupancy.py
 ```
+
+For a DOS / integrated-DOS review that compares the current 8x8 free-electron
+fixture against the analytic continuum target, run:
+
+```bash
+.venv/bin/python examples/review_dos.py
+```
