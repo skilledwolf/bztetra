@@ -1,0 +1,23 @@
+libtetra_original/
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.python-version
+.venv/
+venv/
+
+# Packaging
+build/
+dist/
+*.egg-info/
+
+# Tool caches
+.coverage
+.hypothesis/
+.mypy_cache/
+.nox/
+.pytest_cache/
+.ruff_cache/
+htmlcov/
