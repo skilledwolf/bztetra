@@ -28,7 +28,7 @@ from tests.legacy_cases import lindhard_free_electron_case
 from tests.legacy_cases import lindhard_q_points
 
 
-def test_dblstep_matches_legacy_8x8_response_reference() -> None:
+def test_phase_space_overlap_weights_matches_legacy_8x8_response_reference() -> None:
     bvec, eigenvalues_1, eigenvalues_2, weight_metric = legacy_free_electron_response_case((8, 8, 8), (8, 8, 8))
 
     weights = phase_space_overlap_weights(bvec, eigenvalues_1 - 0.5, eigenvalues_2 - 0.5, weight_grid_shape=(8, 8, 8), method="optimized")
@@ -37,7 +37,7 @@ def test_dblstep_matches_legacy_8x8_response_reference() -> None:
     np.testing.assert_allclose(weighted, legacy_8x8_phase_space_overlap_weighted_integrals(), rtol=8.0e-4, atol=1.0e-6)
 
 
-def test_dbldelta_matches_legacy_8x8_response_reference() -> None:
+def test_nesting_function_weights_matches_legacy_8x8_response_reference() -> None:
     bvec, eigenvalues_1, eigenvalues_2, weight_metric = legacy_free_electron_response_case((8, 8, 8), (8, 8, 8))
 
     weights = nesting_function_weights(bvec, eigenvalues_1 - 0.5, eigenvalues_2 - 0.5, weight_grid_shape=(8, 8, 8), method="optimized")
@@ -46,7 +46,7 @@ def test_dbldelta_matches_legacy_8x8_response_reference() -> None:
     np.testing.assert_allclose(weighted, legacy_8x8_nesting_function_weighted_integrals(), rtol=2.0e-3, atol=1.0e-5)
 
 
-def test_dblstep_tracks_exact_integrals_on_16_grid() -> None:
+def test_phase_space_overlap_weights_tracks_exact_integrals_on_16_grid() -> None:
     bvec, eigenvalues_1, eigenvalues_2, weight_metric = legacy_free_electron_response_case((16, 16, 16), (16, 16, 16))
 
     weights = phase_space_overlap_weights(
@@ -61,7 +61,7 @@ def test_dblstep_tracks_exact_integrals_on_16_grid() -> None:
     np.testing.assert_allclose(weighted, exact_phase_space_overlap_weighted_integrals(), rtol=2.0e-3, atol=1.0e-6)
 
 
-def test_dbldelta_tracks_exact_integrals_on_16_grid() -> None:
+def test_nesting_function_weights_tracks_exact_integrals_on_16_grid() -> None:
     bvec, eigenvalues_1, eigenvalues_2, weight_metric = legacy_free_electron_response_case((16, 16, 16), (16, 16, 16))
 
     weights = nesting_function_weights(
@@ -76,7 +76,7 @@ def test_dbldelta_tracks_exact_integrals_on_16_grid() -> None:
     np.testing.assert_allclose(weighted, exact_nesting_function_weighted_integrals(), rtol=5.0e-3, atol=1.0e-5)
 
 
-def test_polstat_matches_legacy_8x8_response_reference() -> None:
+def test_static_polarization_weights_matches_legacy_8x8_response_reference() -> None:
     bvec, eigenvalues_1, eigenvalues_2, weight_metric = legacy_free_electron_response_case((8, 8, 8), (8, 8, 8))
 
     weights = static_polarization_weights(
@@ -91,7 +91,7 @@ def test_polstat_matches_legacy_8x8_response_reference() -> None:
     np.testing.assert_allclose(weighted, legacy_8x8_polstat_weighted_integrals(), rtol=2.5e-3, atol=1.0e-5)
 
 
-def test_polstat_matches_legacy_16x16_response_reference() -> None:
+def test_static_polarization_weights_matches_legacy_16x16_response_reference() -> None:
     bvec, eigenvalues_1, eigenvalues_2, weight_metric = legacy_free_electron_response_case((16, 16, 16), (16, 16, 16))
 
     weights = static_polarization_weights(
@@ -106,7 +106,7 @@ def test_polstat_matches_legacy_16x16_response_reference() -> None:
     np.testing.assert_allclose(weighted, legacy_16x16_polstat_weighted_integrals(), rtol=2.0e-4, atol=1.0e-5)
 
 
-def test_polstat_matches_legacy_16x8_interpolation_reference() -> None:
+def test_static_polarization_weights_matches_legacy_16x8_interpolation_reference() -> None:
     bvec, eigenvalues_1, eigenvalues_2, weight_metric = legacy_free_electron_response_case((16, 16, 16), (8, 8, 8))
 
     weights = static_polarization_weights(
@@ -121,7 +121,7 @@ def test_polstat_matches_legacy_16x8_interpolation_reference() -> None:
     np.testing.assert_allclose(weighted, legacy_16x8_polstat_weighted_integrals(), rtol=3.0e-4, atol=1.0e-5)
 
 
-def test_polstat_tracks_exact_integrals_on_16_grid() -> None:
+def test_static_polarization_weights_tracks_exact_integrals_on_16_grid() -> None:
     bvec, eigenvalues_1, eigenvalues_2, weight_metric = legacy_free_electron_response_case((16, 16, 16), (16, 16, 16))
 
     weights = static_polarization_weights(
@@ -136,7 +136,7 @@ def test_polstat_tracks_exact_integrals_on_16_grid() -> None:
     np.testing.assert_allclose(weighted, exact_polstat_weighted_integrals(), rtol=5.0e-3, atol=1.0e-5)
 
 
-def test_polstat_matches_python_reference_weights_on_small_grid() -> None:
+def test_static_polarization_weights_matches_python_reference_weights_on_small_grid() -> None:
     bvec, eigenvalues_1, eigenvalues_2, _ = legacy_free_electron_response_case((4, 4, 4), (4, 4, 4))
 
     weights = static_polarization_weights(

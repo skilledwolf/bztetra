@@ -9,7 +9,7 @@ from tests.legacy_cases import legacy_8x8_fermi_golden_rule_weighted_integrals
 from tests.legacy_cases import legacy_free_electron_response_case
 
 
-def test_fermigr_exposes_energy_first_pair_band_last_layout() -> None:
+def test_fermi_golden_rule_weights_exposes_energy_first_pair_band_last_layout() -> None:
     bvec, eigenvalues_1, eigenvalues_2, _ = legacy_free_electron_response_case((8, 8, 8), (8, 8, 8))
 
     weights = fermi_golden_rule_weights(
@@ -25,7 +25,7 @@ def test_fermigr_exposes_energy_first_pair_band_last_layout() -> None:
     assert weights.dtype == np.float64
 
 
-def test_fermigr_matches_legacy_8x8_response_reference() -> None:
+def test_fermi_golden_rule_weights_matches_legacy_8x8_response_reference() -> None:
     bvec, eigenvalues_1, eigenvalues_2, weight_metric = legacy_free_electron_response_case((8, 8, 8), (8, 8, 8))
 
     weights = fermi_golden_rule_weights(
@@ -41,7 +41,7 @@ def test_fermigr_matches_legacy_8x8_response_reference() -> None:
     np.testing.assert_allclose(weighted, legacy_8x8_fermi_golden_rule_weighted_integrals(), rtol=8.0e-4, atol=1.0e-6)
 
 
-def test_fermigr_matches_legacy_16x8_interpolation_reference() -> None:
+def test_fermi_golden_rule_weights_matches_legacy_16x8_interpolation_reference() -> None:
     bvec, eigenvalues_1, eigenvalues_2, weight_metric = legacy_free_electron_response_case((16, 16, 16), (8, 8, 8))
 
     weights = fermi_golden_rule_weights(
@@ -57,7 +57,7 @@ def test_fermigr_matches_legacy_16x8_interpolation_reference() -> None:
     np.testing.assert_allclose(weighted, legacy_16x8_fermi_golden_rule_weighted_integrals(), rtol=2.0e-4, atol=1.0e-5)
 
 
-def test_fermigr_tracks_exact_integrals_on_16_grid() -> None:
+def test_fermi_golden_rule_weights_tracks_exact_integrals_on_16_grid() -> None:
     bvec, eigenvalues_1, eigenvalues_2, weight_metric = legacy_free_electron_response_case((16, 16, 16), (16, 16, 16))
 
     weights = fermi_golden_rule_weights(

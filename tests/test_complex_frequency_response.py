@@ -10,7 +10,7 @@ from tests.legacy_cases import legacy_free_electron_response_case
 from tests.legacy_cases import complex_frequency_polarization_energy_points
 
 
-def test_polcmplx_exposes_energy_first_pair_band_last_layout() -> None:
+def test_complex_frequency_polarization_weights_exposes_energy_first_pair_band_last_layout() -> None:
     bvec, eigenvalues_1, eigenvalues_2, _ = legacy_free_electron_response_case((8, 8, 8), (8, 8, 8))
 
     weights = complex_frequency_polarization_weights(
@@ -26,7 +26,7 @@ def test_polcmplx_exposes_energy_first_pair_band_last_layout() -> None:
     assert weights.dtype == np.complex128
 
 
-def test_polcmplx_matches_legacy_8x8_response_reference() -> None:
+def test_complex_frequency_polarization_weights_matches_legacy_8x8_response_reference() -> None:
     bvec, eigenvalues_1, eigenvalues_2, weight_metric = legacy_free_electron_response_case((8, 8, 8), (8, 8, 8))
 
     weights = complex_frequency_polarization_weights(
@@ -42,7 +42,7 @@ def test_polcmplx_matches_legacy_8x8_response_reference() -> None:
     np.testing.assert_allclose(weighted, legacy_8x8_complex_frequency_polarization_weighted_integrals(), rtol=5.0e-4, atol=1.0e-5)
 
 
-def test_polcmplx_matches_legacy_16x8_interpolation_reference() -> None:
+def test_complex_frequency_polarization_weights_matches_legacy_16x8_interpolation_reference() -> None:
     bvec, eigenvalues_1, eigenvalues_2, weight_metric = legacy_free_electron_response_case((16, 16, 16), (8, 8, 8))
 
     weights = complex_frequency_polarization_weights(
@@ -58,7 +58,7 @@ def test_polcmplx_matches_legacy_16x8_interpolation_reference() -> None:
     np.testing.assert_allclose(weighted, legacy_16x8_complex_frequency_polarization_weighted_integrals(), rtol=3.0e-4, atol=1.0e-5)
 
 
-def test_polcmplx_tracks_exact_anchor_integrals_on_16_grid() -> None:
+def test_complex_frequency_polarization_weights_tracks_exact_anchor_integrals_on_16_grid() -> None:
     bvec, eigenvalues_1, eigenvalues_2, weight_metric = legacy_free_electron_response_case((16, 16, 16), (16, 16, 16))
 
     weights = complex_frequency_polarization_weights(
@@ -74,7 +74,7 @@ def test_polcmplx_tracks_exact_anchor_integrals_on_16_grid() -> None:
     np.testing.assert_allclose(weighted, exact_complex_frequency_polarization_weighted_integrals(), rtol=6.0e-3, atol=1.0e-5)
 
 
-def test_polcmplx_tracks_exact_constant_gap_channels_on_matsubara_axis() -> None:
+def test_complex_frequency_polarization_weights_tracks_exact_constant_gap_channels_on_matsubara_axis() -> None:
     bvec, eigenvalues_1, eigenvalues_2, weight_metric = legacy_free_electron_response_case((16, 16, 16), (16, 16, 16))
     energies = 1j * np.linspace(0.25, 2.5, 9, dtype=np.float64)
 
