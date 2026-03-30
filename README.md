@@ -16,6 +16,15 @@ The implementation strategy is:
 - SciPy only where it materially helps validation, reference calculations, or
   tooling; it is not a planned dependency for the core runtime path right now.
 
+## Dev Setup
+
+```bash
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -e '.[dev]'
+pytest -q
+```
+
 For a quick human-review snapshot of the current geometry/indexing layer, the
 shared cut-formula helpers, and one occupation-weight result, run:
 

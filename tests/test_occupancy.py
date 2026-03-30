@@ -1,98 +1,136 @@
-import math
-
 import numpy as np
-import pytest
 
-from tetrabz import occupation_weights
-from tetrabz import solve_fermi_energy
+from tetrabz import fermieng
+from tetrabz import occ
 
 
-def test_occupation_weights_match_legacy_shell_reference_on_8_grid() -> None:
-    reciprocal_vectors, eigenvalues, _, matrix_weights, vbz = _toy_case((8, 8, 8), (8, 8, 8))
+def test_occ_returns_uniform_weights_for_fully_occupied_flat_band() -> None:
+    eigenvalues = np.full((2, 2, 2, 1), -1.0, dtype=np.float64)
 
-    weights = occupation_weights(
-        reciprocal_vectors,
+    weights = occ(np.eye(3, dtype=np.float64), eigenvalues, method="linear")
+
+    assert weights.shape == (2, 2, 2, 1)
+    np.testing.assert_allclose(weights[..., 0], np.full((2, 2, 2), 1.0 / 8.0))
+    np.testing.assert_allclose(weights[..., 0].sum(), 1.0)
+
+
+def test_occ_returns_zero_weights_for_empty_flat_band() -> None:
+    eigenvalues = np.full((2, 2, 2, 1), 1.0, dtype=np.float64)
+
+    weights = occ(np.eye(3, dtype=np.float64), eigenvalues, method="linear")
+
+    np.testing.assert_allclose(weights[..., 0], 0.0)
+
+
+def test_occ_interpolates_constant_band_to_denser_output_grid() -> None:
+    eigenvalues = np.full((2, 2, 2, 1), -1.0, dtype=np.float64)
+
+    weights = occ(
+        np.eye(3, dtype=np.float64),
         eigenvalues,
-        method="optimized",
-        fermi_energy=0.5,
+        weight_grid_shape=(4, 4, 4),
+        method="linear",
     )
 
-    assert weights.shape == (8, 8, 8, 2)
-    values = np.sum(weights * matrix_weights[..., None], axis=(0, 1, 2)) * vbz
-    np.testing.assert_allclose(values, np.array([2.5028, 0.43994]), rtol=0.0, atol=5.0e-4)
+    assert weights.shape == (4, 4, 4, 1)
+    expected = np.zeros((4, 4, 4), dtype=np.float64)
+    expected[::2, ::2, ::2] = 1.0 / 8.0
+    np.testing.assert_allclose(weights[..., 0], expected)
+    np.testing.assert_allclose(weights[..., 0].sum(), 1.0)
 
 
-def test_solve_fermi_energy_matches_legacy_shell_reference_on_8_grid() -> None:
-    reciprocal_vectors, eigenvalues, _, matrix_weights, vbz = _toy_case((8, 8, 8), (8, 8, 8))
-    nelec = (4.0 * math.pi / 3.0 + math.sqrt(2.0) * math.pi / 3.0) / vbz
+def test_fermieng_solves_midgap_for_two_flat_bands() -> None:
+    eigenvalues = np.empty((2, 2, 2, 2), dtype=np.float64)
+    eigenvalues[..., 0] = -1.0
+    eigenvalues[..., 1] = 1.0
 
-    fermi_energy, weights = solve_fermi_energy(
-        reciprocal_vectors,
+    fermi_energy, weights, iterations = fermieng(
+        np.eye(3, dtype=np.float64),
         eigenvalues,
-        nelec,
-        method="optimized",
+        1.0,
+        method="linear",
     )
 
-    assert weights.shape == (8, 8, 8, 2)
-    assert fermi_energy == pytest.approx(0.50086, abs=5.0e-4)
-    values = np.sum(weights * matrix_weights[..., None], axis=(0, 1, 2)) * vbz
-    np.testing.assert_allclose(values, np.array([2.5136, 0.44385]), rtol=0.0, atol=7.0e-4)
+    assert fermi_energy == 0.0
+    assert iterations > 0
+    np.testing.assert_allclose(weights[..., 0].sum(), 1.0)
+    np.testing.assert_allclose(weights[..., 1].sum(), 0.0)
 
 
-def test_interpolated_occupation_weights_preserve_total_weight_sum() -> None:
-    reciprocal_vectors, eigenvalues, _, _, _ = _toy_case((4, 4, 4), (4, 4, 4))
+def test_occ_matches_legacy_8x8_reference_integrals() -> None:
+    bvec, eigenvalues, weight_metric = _legacy_free_electron_case((8, 8, 8), (8, 8, 8))
 
-    direct = occupation_weights(
-        reciprocal_vectors,
+    weights = occ(bvec, eigenvalues, weight_grid_shape=(8, 8, 8), method="optimized", fermi_energy=0.5)
+    weighted_integrals = (weights * weight_metric[..., None]).sum(axis=(0, 1, 2)) * _brillouin_zone_volume(bvec)
+
+    np.testing.assert_allclose(weighted_integrals, np.array([2.5028, 0.43994]), rtol=3.0e-4, atol=1.0e-5)
+
+
+def test_fermieng_matches_legacy_8x8_reference() -> None:
+    bvec, eigenvalues, weight_metric = _legacy_free_electron_case((8, 8, 8), (8, 8, 8))
+    electrons_per_spin = (4.0 * np.pi / 3.0 + np.sqrt(2.0) * np.pi / 3.0) / _brillouin_zone_volume(bvec)
+
+    fermi_energy, weights, iterations = fermieng(
+        bvec,
         eigenvalues,
+        electrons_per_spin,
+        weight_grid_shape=(8, 8, 8),
         method="optimized",
-        fermi_energy=0.5,
     )
-    interpolated = occupation_weights(
-        reciprocal_vectors,
-        eigenvalues,
-        weight_grid_shape=(2, 2, 2),
-        method="optimized",
-        fermi_energy=0.5,
-    )
+    weighted_integrals = (weights * weight_metric[..., None]).sum(axis=(0, 1, 2)) * _brillouin_zone_volume(bvec)
 
-    assert interpolated.shape == (2, 2, 2, 2)
-    assert np.sum(interpolated) == pytest.approx(np.sum(direct))
+    np.testing.assert_allclose(fermi_energy, 0.50086, rtol=2.0e-4, atol=1.0e-5)
+    np.testing.assert_allclose(weighted_integrals, np.array([2.5136, 0.44385]), rtol=4.0e-4, atol=1.0e-5)
+    assert iterations > 0
 
 
-def _toy_case(
+def _legacy_free_electron_case(
     energy_grid_shape: tuple[int, int, int],
     weight_grid_shape: tuple[int, int, int],
-) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float]:
-    reciprocal_vectors = np.diag([3.0, 3.0, 3.0]).astype(np.float64)
-    vbz = float(np.linalg.det(reciprocal_vectors))
-
-    eigenvalues = np.empty((*energy_grid_shape, 2), dtype=np.float64)
-    eig2 = np.empty((*energy_grid_shape, 2), dtype=np.float64)
-    for index in np.ndindex(*energy_grid_shape):
-        kvec = _wrapped_kvec(index, energy_grid_shape, reciprocal_vectors)
-        base = 0.5 * float(np.dot(kvec, kvec))
-        eigenvalues[index + (0,)] = base
-        eigenvalues[index + (1,)] = base + 0.25
-
-        shifted = kvec.copy()
-        shifted[0] += 1.0
-        eig2[index + (0,)] = 0.5 * float(np.dot(shifted, shifted))
-        eig2[index + (1,)] = base + 0.5
-
-    matrix_weights = np.empty(weight_grid_shape, dtype=np.float64)
-    for index in np.ndindex(*weight_grid_shape):
-        kvec = _wrapped_kvec(index, weight_grid_shape, reciprocal_vectors)
-        matrix_weights[index] = float(np.dot(kvec, kvec))
-
-    return reciprocal_vectors, eigenvalues, eig2, matrix_weights, vbz
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    bvec = np.diag([3.0, 3.0, 3.0]).astype(np.float64)
+    eigenvalues = _make_eigenvalues(bvec, energy_grid_shape)
+    weight_metric = _make_weight_metric(bvec, weight_grid_shape)
+    return bvec, eigenvalues, weight_metric
 
 
-def _wrapped_kvec(
-    index: tuple[int, int, int],
-    grid_shape: tuple[int, int, int],
-    reciprocal_vectors: np.ndarray,
-) -> np.ndarray:
-    fractional = np.array(index, dtype=np.float64) / np.array(grid_shape, dtype=np.float64)
-    fractional = fractional - np.rint(fractional)
-    return reciprocal_vectors @ fractional
+def _make_eigenvalues(bvec: np.ndarray, grid_shape: tuple[int, int, int]) -> np.ndarray:
+    nx, ny, nz = grid_shape
+    eigenvalues = np.empty((nx, ny, nz, 2), dtype=np.float64)
+
+    for x_index in range(nx):
+        for y_index in range(ny):
+            for z_index in range(nz):
+                kvec = np.array(
+                    [x_index / nx, y_index / ny, z_index / nz],
+                    dtype=np.float64,
+                )
+                kvec = kvec - np.rint(kvec)
+                kvec = bvec @ kvec
+                band_0 = 0.5 * float(np.dot(kvec, kvec))
+                eigenvalues[x_index, y_index, z_index, 0] = band_0
+                eigenvalues[x_index, y_index, z_index, 1] = band_0 + 0.25
+
+    return eigenvalues
+
+
+def _make_weight_metric(bvec: np.ndarray, grid_shape: tuple[int, int, int]) -> np.ndarray:
+    nx, ny, nz = grid_shape
+    metric = np.empty((nx, ny, nz), dtype=np.float64)
+
+    for x_index in range(nx):
+        for y_index in range(ny):
+            for z_index in range(nz):
+                kvec = np.array(
+                    [x_index / nx, y_index / ny, z_index / nz],
+                    dtype=np.float64,
+                )
+                kvec = kvec - np.rint(kvec)
+                kvec = bvec @ kvec
+                metric[x_index, y_index, z_index] = float(np.dot(kvec, kvec))
+
+    return metric
+
+
+def _brillouin_zone_volume(bvec: np.ndarray) -> float:
+    return float(np.linalg.det(bvec))
