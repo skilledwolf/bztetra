@@ -15,6 +15,10 @@ An initial 2D slice now exists under `bztetra.twod`:
 
 The 2D response family is still pending.
 
+Exact regression fixtures for the 2D response formulas are already staged in
+the test suite so the implementation can be validated against the expert
+derivation once the source module lands.
+
 ## What Not To Do
 
 Do **not** try to treat a 2D problem as a fake `(nx, ny, 1)` 3D problem.
