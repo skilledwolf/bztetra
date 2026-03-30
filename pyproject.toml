@@ -3,14 +3,14 @@ requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
-name = "libtetra"
-version = "0.1.0"
+name = "tetrabz"
+version = "0.2.0"
 description = "Python and Numba port of libtetrabz-style tetrahedron integration routines."
 readme = "README.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [
-  {name = "libtetra contributors"},
+  {name = "tetrabz contributors"},
 ]
 dependencies = [
   "numba>=0.61",
@@ -24,7 +24,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/libtetra"]
+packages = ["src/tetrabz", "src/libtetra"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
