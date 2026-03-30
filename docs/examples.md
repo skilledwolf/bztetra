@@ -99,7 +99,7 @@ W_{\mathrm{overlap}}(\mathbf{q})
 =
 \int_{\mathrm{BZ}}
 \Theta(-\varepsilon_{\mathbf{k}})
-\Theta(\varepsilon_{\mathbf{k}+\mathbf{q}})\, d^3k,
+\Theta(\varepsilon_{\mathbf{k}} - \varepsilon_{\mathbf{k}+\mathbf{q}})\, d^3k,
 \]
 
 \[
@@ -119,10 +119,18 @@ python examples/plot_phase_space_and_nesting.py
 <figure markdown>
   ![Phase-space overlap and nesting](assets/plots/phase_space_and_nesting.png)
   <figcaption>
-    The overlap weight measures the occupied-to-empty phase-space volume, while
-    the nesting weight isolates the Fermi-surface intersection geometry.
+    The overlap weight follows the legacy `dblstep` geometry, while the nesting
+    weight isolates the Fermi-surface intersection geometry.
   </figcaption>
 </figure>
+
+## 2D Free-Electron Response
+
+The 2D `bztetra.twod` path now has plot-first review scripts for the linear
+triangle response kernels:
+
+- `python examples/plot_twod_phase_space_overlap.py`
+- `python examples/plot_twod_lindhard.py`
 
 ## Complex-Frequency Polarization On The Matsubara Axis
 
@@ -169,5 +177,7 @@ polarization = weights.sum(axis=(1, 2, 3)) * np.linalg.det(bvec)
 - `python examples/review_occupancy.py`
 - `python examples/review_dos.py`
 - `python examples/plot_twod_square_lattice_dos.py`
+- `python examples/plot_twod_phase_space_overlap.py`
+- `python examples/plot_twod_lindhard.py`
 - `python examples/plot_fermi_golden_rule.py`
 - `python examples/review_geometry_and_cuts.py`

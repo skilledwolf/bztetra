@@ -40,15 +40,22 @@ def exact_free_electron_intdos_normalized(energies: np.ndarray) -> np.ndarray:
 
 def phase_space_overlap_full_triangle_case() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     occupied = np.array([-1.0, -1.0, -1.0], dtype=np.float64)
-    target = np.array([1.0, 1.0, 1.0], dtype=np.float64)
+    target = np.array([-2.0, -2.0, -2.0], dtype=np.float64)
     expected = np.full(3, 1.0 / 6.0, dtype=np.float64)
     return occupied, target, expected
 
 
 def phase_space_overlap_empty_triangle_case() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    occupied = np.array([1.0, 1.0, 1.0], dtype=np.float64)
-    target = np.array([-1.0, -1.0, -1.0], dtype=np.float64)
+    occupied = np.array([-1.0, -1.0, -1.0], dtype=np.float64)
+    target = np.array([1.0, 1.0, 1.0], dtype=np.float64)
     expected = np.zeros(3, dtype=np.float64)
+    return occupied, target, expected
+
+
+def phase_space_overlap_equal_triangle_case() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    occupied = np.array([-1.0, -1.0, -1.0], dtype=np.float64)
+    target = np.array([-1.0, -1.0, -1.0], dtype=np.float64)
+    expected = np.full(3, 1.0 / 12.0, dtype=np.float64)
     return occupied, target, expected
 
 

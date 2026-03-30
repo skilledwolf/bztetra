@@ -69,14 +69,15 @@ For two band manifolds, `bztetra` exposes three useful static objects.
 
 ### Phase-Space Overlap
 
-`phase_space_overlap_weights` corresponds to the occupied-to-empty overlap
-volume
+`phase_space_overlap_weights` follows the legacy `dblstep` semantics: occupied
+phase space filtered by a second Heaviside on the source-minus-target energy
+difference
 
 \[
 W_{\mathrm{overlap}}(\mathbf{q}) =
 \sum_{nm} \int_{\mathrm{BZ}}
 \Theta\!\left(-\varepsilon_n(\mathbf{k})\right)
-\Theta\!\left(\varepsilon_m(\mathbf{k}+\mathbf{q})\right)
+\Theta\!\left(\varepsilon_n(\mathbf{k}) - \varepsilon_m(\mathbf{k}+\mathbf{q})\right)
 \, d^3k,
 \]
 
@@ -109,6 +110,10 @@ f\!\left(\varepsilon_n(\mathbf{k})\right)
 }
 \, d^3k.
 \]
+
+For simple symmetric free-electron review plots, the full Lindhard curve is
+the sum of the occupied-to-empty and empty-to-occupied channels, so examples
+at nonzero \(q\) often multiply the kernel by 2.
 
 All three static response routines return arrays of shape
 

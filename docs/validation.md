@@ -8,10 +8,10 @@
 3. Analytic reference checks for occupation, DOS, static response, real-
    frequency response, and Matsubara-axis complex response.
 
-These checks currently cover the 3D tetrahedron path only. Strictly 2D support
-now has an initial validated `bztetra.twod` occupation/DOS path, while the 2D
-response family remains a separate planned track; see
-[two_dimensional_plan.md](two_dimensional_plan.md).
+These checks cover the 3D tetrahedron path plus the current 2D linear
+triangle-method implementation under `bztetra.twod`. The 2D response family is
+now included in exact single-triangle regression checks and public-API smoke
+coverage; see [two_dimensional_plan.md](two_dimensional_plan.md).
 
 Until the first full public release, treat these checks as part of normal use
 for important calculations. If a result matters, compare against the original
@@ -72,11 +72,13 @@ The main analytic and structural checks live in:
 These include free-electron integrals, Lindhard limits, and Matsubara-anchor
 checks in addition to output-shape and dtype validation.
 
-The first 2D analytic checks live in:
+The 2D analytic and structural checks live in:
 
 - `tests/test_twod_geometry.py`
 - `tests/test_twod_occupancy.py`
 - `tests/test_twod_dos.py`
+- `tests/test_twod_response.py`
+- `tests/test_twod_frequency_response.py`
 
 ## Original Project
 

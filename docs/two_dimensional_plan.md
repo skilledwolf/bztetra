@@ -11,13 +11,17 @@ An initial 2D slice now exists under `bztetra.twod`:
 - `occupation_weights`,
 - `solve_fermi_energy`,
 - `density_of_states_weights`,
-- `integrated_density_of_states_weights`.
+- `integrated_density_of_states_weights`,
+- `phase_space_overlap_weights`,
+- `nesting_function_weights`,
+- `static_polarization_weights`,
+- `fermi_golden_rule_weights`,
+- `complex_frequency_polarization_weights`,
+- `prepare_response_evaluator`.
 
-The 2D response family is still pending.
-
-Exact regression fixtures for the 2D response formulas are already staged in
-the test suite so the implementation can be validated against the expert
-derivation once the source module lands.
+The current 2D response path is implemented and validated for the exact linear
+triangle method. The main remaining open question is whether 2D needs a
+separate improved/optimized correction beyond the current linear kernels.
 
 ## What Not To Do
 
@@ -61,13 +65,21 @@ These pieces are now live in `bztetra.twod`:
 - `solve_fermi_energy`
 - `density_of_states_weights`
 - `integrated_density_of_states_weights`
+- `phase_space_overlap_weights`
+- `nesting_function_weights`
+- `static_polarization_weights`
+- `fermi_golden_rule_weights`
+- `complex_frequency_polarization_weights`
+- `prepare_response_evaluator`
 - analytic checks such as constant 2D free-electron DOS
 - a plot-first 2D square-lattice DOS review example
+- exact single-triangle regression checks for the response-family formulas
+- plot-first 2D free-electron overlap and Lindhard review examples
 
-### I Want Expert Derivation Review Before Implementing
+### The Expert Derivation Was Needed For
 
-The response-family routines should not be implemented from intuition alone.
-They need a clean 2D triangle-method derivation and edge-case strategy first:
+The response-family routines were not implemented from intuition alone. They
+needed a clean 2D triangle-method derivation and edge-case strategy first:
 
 - `phase_space_overlap_weights`
 - `nesting_function_weights`
@@ -75,22 +87,23 @@ They need a clean 2D triangle-method derivation and edge-case strategy first:
 - `fermi_golden_rule_weights`
 - `complex_frequency_polarization_weights`
 
-The main risks are degeneracies, grazing intersections, exact-zero energy
-differences, and getting the piecewise per-triangle formulas wrong while still
-matching the desired k-resolved weight semantics.
+That derivation is now folded into the implementation. The remaining caution
+areas are optimized-correction design, public documentation of the `dblstep`
+semantics, and broader plot-first review coverage for the dynamic kernels.
 
 ## Next 2D Steps
 
-1. Decide whether the 2D occupation/DOS path should remain linear-only or gain
-   an improved/optimized triangle-weight scheme.
-2. Add more 2D review cases if needed, especially for interpolation-heavy
-   output-grid changes.
-3. Only then add the 2D response family after a formula review.
+1. Decide whether the 2D path should remain linear-only or gain an
+   improved/optimized triangle-weight scheme.
+2. Add more 2D review cases for the frequency-dependent kernels if we want the
+   same plot coverage depth as the 3D path.
+3. Keep the exact single-triangle regression cases in sync with any future 2D
+   optimization work.
 
 ## Expert Handoff Prompt
 
 If a stronger computational-physics model is available, this is the prompt I
-would use before implementing the 2D response family.
+used before implementing the 2D response family.
 
 ```text
 You are helping design a true 2D triangle-method extension for an existing

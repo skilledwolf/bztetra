@@ -9,8 +9,8 @@ against the original
 the parity checks in [validation.md](validation.md).
 
 The top-level `bztetra` routines on this page are strictly 3D. For 2D
-occupation/DOS work, use `bztetra.twod`. Do not fake a flat third axis with
-`nz=1`; see [two_dimensional_plan.md](two_dimensional_plan.md).
+occupation, DOS, or response work, use `bztetra.twod`. Do not fake a flat
+third axis with `nz=1`; see [two_dimensional_plan.md](two_dimensional_plan.md).
 
 ## Four Things To Know
 

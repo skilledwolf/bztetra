@@ -7,9 +7,10 @@ It is aimed at users who already have band energies on a regular mesh and want
 k-resolved weights for occupations, DOS, and Lindhard-style response functions
 without going through the legacy `libtetrabz` wrapper.
 
-The top-level `bztetra` API remains strictly 3D. Initial 2D support now lives
-under `bztetra.twod` for the occupation/DOS family with the linear triangle
-method. Do not fake a flat third axis with `nz=1`; see
+The top-level `bztetra` API remains strictly 3D. A parallel 2D linear
+triangle-method implementation now lives under `bztetra.twod` for the
+occupation, DOS, and response families. Do not fake a flat third axis with
+`nz=1`; see
 [docs/two_dimensional_plan.md](docs/two_dimensional_plan.md).
 
 > [!WARNING]
@@ -104,9 +105,10 @@ See [docs/physics.md](docs/physics.md) for the key formulas and
   response figure.
 - [examples/plot_twod_square_lattice_dos.py](examples/plot_twod_square_lattice_dos.py):
   2D square-lattice DOS and integrated DOS via `bztetra.twod`.
-- [examples/plot_twod_square_lattice_dos.py](examples/plot_twod_square_lattice_dos.py):
-  2D square-lattice DOS and filling with the expected van Hove peak at
-  half-filling.
+- [examples/plot_twod_phase_space_overlap.py](examples/plot_twod_phase_space_overlap.py):
+  2D free-electron `dblstep` phase-space overlap with the exact circular-segment curve.
+- [examples/plot_twod_lindhard.py](examples/plot_twod_lindhard.py):
+  2D free-electron static Lindhard plateau and Kohn cusp.
 
 ## Validation
 

@@ -19,9 +19,8 @@ functions below are grouped by workflow rather than by source file.
 
 ## 2D Triangle Method
 
-Initial 2D support is intentionally narrower than the 3D path: the occupation
-and DOS family lives under `bztetra.twod`, while 2D response kernels remain
-pending.
+`bztetra.twod` mirrors the 3D public vocabulary where the physics matches, but
+with 2D shapes and the linear triangle method only.
 
 ::: bztetra.twod.FermiEnergySolution
 
@@ -32,6 +31,20 @@ pending.
 ::: bztetra.twod.density_of_states_weights
 
 ::: bztetra.twod.integrated_density_of_states_weights
+
+::: bztetra.twod.PreparedResponseEvaluator
+
+::: bztetra.twod.prepare_response_evaluator
+
+::: bztetra.twod.phase_space_overlap_weights
+
+::: bztetra.twod.nesting_function_weights
+
+::: bztetra.twod.static_polarization_weights
+
+::: bztetra.twod.fermi_golden_rule_weights
+
+::: bztetra.twod.complex_frequency_polarization_weights
 
 ::: bztetra.twod.TriangleIntegrationMesh
 

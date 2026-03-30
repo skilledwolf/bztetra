@@ -3,8 +3,9 @@
 `bztetra` is a Python + Numba package for tetrahedron integration on regular
 k-grids, aimed at electronic-structure users who want physically meaningful
 Brillouin-zone weights without going through the legacy `libtetrabz` wrapper.
-The top-level API is 3D-only, while an initial 2D occupation/DOS path now
-lives under `bztetra.twod`; see [Two-Dimensional Plan](two_dimensional_plan.md).
+The top-level API is 3D-only, while the parallel 2D linear triangle-method
+surface now lives under `bztetra.twod`; see
+[Two-Dimensional Plan](two_dimensional_plan.md).
 
 !!! warning "Pre-release status"
 
