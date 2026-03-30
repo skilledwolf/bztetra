@@ -3,6 +3,11 @@
 This is the shortest path from "I have band energies on a regular k-grid" to a
 correct `tetrabz` call.
 
+Until the first full public release, validate important production calculations
+against the original
+[`libtetrabz`](https://github.com/mitsuaki1987/libtetrabz) implementation or
+the parity checks in [validation.md](validation.md).
+
 ## Four Things To Know
 
 1. `reciprocal_vectors` is a `(3, 3)` array with reciprocal basis vectors in

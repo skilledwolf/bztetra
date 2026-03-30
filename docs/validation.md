@@ -8,6 +8,11 @@
 3. Analytic reference checks for occupation, DOS, static response, real-
    frequency response, and Matsubara-axis complex response.
 
+Until the first full public release, treat these checks as part of normal use
+for important calculations. If a result matters, compare against the original
+[`libtetrabz`](https://github.com/mitsuaki1987/libtetrabz) implementation or
+run the parity suite below.
+
 ## Reproduce The Full Gate
 
 From a development checkout:
@@ -58,3 +63,18 @@ The main analytic and structural checks live in:
 
 These include free-electron integrals, Lindhard limits, and Matsubara-anchor
 checks in addition to output-shape and dtype validation.
+
+## Original Project
+
+`tetrabz` is a clean-room port informed by the original `libtetrabz` project by
+Mitsuaki Kawamura and collaborators. For original source, manuals, and the
+legacy Python wrapper, see:
+
+- [github.com/mitsuaki1987/libtetrabz](https://github.com/mitsuaki1987/libtetrabz)
+- [mitsuaki1987.github.io/libtetrabz/python/_build/html/index.html](https://mitsuaki1987.github.io/libtetrabz/python/_build/html/index.html)
+
+If you use `tetrabz` in research, also cite the original method paper:
+
+- M. Kawamura, Y. Gohda, and S. Tsuneyuki, "Improved tetrahedron method for the
+  Brillouin-zone integration applicable to response functions,"
+  [Phys. Rev. B 89, 094515 (2014)](https://journals.aps.org/prb/abstract/10.1103/PhysRevB.89.094515)

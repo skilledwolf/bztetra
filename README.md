@@ -7,6 +7,12 @@ It is aimed at users who already have band energies on a regular mesh and want
 k-resolved weights for occupations, DOS, and Lindhard-style response functions
 without going through the legacy `libtetrabz` wrapper.
 
+> [!WARNING]
+> `tetrabz` is still pre-release. Until the first full public release, users
+> should validate important production results against the original
+> [`libtetrabz`](https://github.com/mitsuaki1987/libtetrabz) implementation or
+> run the parity checks described in [docs/validation.md](docs/validation.md).
+
 - NumPy arrays in, NumPy arrays out.
 - Optimized and legacy-linear tetrahedron schemes.
 - Validation against legacy shell outputs, the legacy Python wrapper, and
@@ -98,6 +104,19 @@ selection, and short usage patterns.
 legacy `libtetrabz` Python wrapper, and analytic reference cases. See
 [docs/validation.md](docs/validation.md) for the exact coverage and
 reproduction commands.
+
+## Acknowledgement
+
+`tetrabz` is a clean-room Python + Numba port informed by the original
+[`libtetrabz`](https://github.com/mitsuaki1987/libtetrabz) project by Mitsuaki
+Kawamura and collaborators. If `tetrabz` is useful in research, users should
+also acknowledge the original method and implementation:
+
+- M. Kawamura, Y. Gohda, and S. Tsuneyuki, "Improved tetrahedron method for the
+  Brillouin-zone integration applicable to response functions,"
+  [Phys. Rev. B 89, 094515 (2014)](https://journals.aps.org/prb/abstract/10.1103/PhysRevB.89.094515)
+- Original repository:
+  [github.com/mitsuaki1987/libtetrabz](https://github.com/mitsuaki1987/libtetrabz)
 
 ## Development
 
