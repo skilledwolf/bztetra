@@ -73,5 +73,30 @@ def test_fermi_golden_rule_weights_tracks_exact_integrals_on_16_grid() -> None:
     np.testing.assert_allclose(weighted, exact_fermi_golden_rule_weighted_integrals(), rtol=5.0e-3, atol=1.0e-5)
 
 
+def test_fermi_golden_rule_weights_preserves_unsorted_energy_order() -> None:
+    bvec, eigenvalues_1, eigenvalues_2, _ = legacy_free_electron_response_case((8, 8, 8), (8, 8, 8))
+    energies = fermi_golden_rule_energy_points()
+    permutation = np.array([2, 0, 1], dtype=np.int64)
+
+    sorted_weights = fermi_golden_rule_weights(
+        bvec,
+        eigenvalues_1 - 0.5,
+        eigenvalues_2 - 0.5,
+        energies,
+        weight_grid_shape=(8, 8, 8),
+        method="optimized",
+    )
+    shuffled_weights = fermi_golden_rule_weights(
+        bvec,
+        eigenvalues_1 - 0.5,
+        eigenvalues_2 - 0.5,
+        energies[permutation],
+        weight_grid_shape=(8, 8, 8),
+        method="optimized",
+    )
+
+    np.testing.assert_allclose(shuffled_weights, sorted_weights[permutation], rtol=1.0e-12, atol=1.0e-12)
+
+
 def _weighted_energy_matrix(weights: np.ndarray, metric: np.ndarray, reciprocal_vectors: np.ndarray) -> np.ndarray:
     return (weights * metric[None, ..., None, None]).sum(axis=(1, 2, 3)) * brillouin_zone_volume(reciprocal_vectors)
