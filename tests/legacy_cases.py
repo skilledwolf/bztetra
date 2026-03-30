@@ -6,7 +6,8 @@ import numpy as np
 
 
 FloatArray = np.ndarray
-LEGACY_EXAMPLE_DIR = Path(__file__).resolve().parents[1] / "libtetra_original" / "example"
+LEGACY_DATA_DIR = Path(__file__).resolve().parent / "data" / "legacy"
+LEGACY_EXAMPLE_DIR = LEGACY_DATA_DIR / "example"
 
 
 def legacy_free_electron_case(

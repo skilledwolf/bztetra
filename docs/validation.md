@@ -3,8 +3,8 @@
 `bztetra` is release-checked against three reference layers:
 
 1. Legacy shell-matrix parity for the `8^3`, `16^3 -> 8^3`, and `16^3` cases.
-2. Direct parity against the installed legacy `libtetrabz` Python wrapper on
-   same-grid tensor outputs.
+2. Optional direct parity against the installed legacy `libtetrabz` Python
+   wrapper on same-grid tensor outputs.
 3. Analytic reference checks for occupation, DOS, static response, real-
    frequency response, and Matsubara-axis complex response.
 
@@ -29,10 +29,11 @@ pip install -e '.[dev]'
 python -m pytest -q
 ```
 
-To include direct parity against the legacy Python wrapper:
+The default test suite already includes the tracked shell/example fixtures. To
+include direct parity against the legacy Python wrapper as well:
 
 ```bash
-pip install -e ./libtetra_original/python
+pip install libtetrabz
 python -m pytest -q tests/test_legacy_shell_matrix.py tests/test_legacy_wrapper_parity.py
 ```
 

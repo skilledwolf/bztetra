@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import numpy as np
 
 from bztetra import nesting_function_weights
@@ -26,6 +24,7 @@ from tests.legacy_cases import legacy_16x16_polstat_weighted_integrals
 from tests.legacy_cases import legacy_free_electron_response_case
 from tests.legacy_cases import lindhard_free_electron_case
 from tests.legacy_cases import lindhard_q_points
+from tests.legacy_cases import load_legacy_example_dataset
 
 
 def test_phase_space_overlap_weights_matches_legacy_8x8_response_reference() -> None:
@@ -177,13 +176,12 @@ def test_lindhard_small_q_and_kohn_point_track_exact_curve() -> None:
 
 def test_lindhard_8x8_curves_match_legacy_examples() -> None:
     q_values = lindhard_q_points()
-    legacy_dir = Path(__file__).resolve().parents[1] / "libtetra_original" / "example"
 
     linear_curve = _lindhard_curve(q_values, method="linear")
     optimized_curve = _lindhard_curve(q_values, method="optimized")
 
-    legacy_linear = np.loadtxt(legacy_dir / "lindhard1_8.dat", dtype=np.float64)
-    legacy_optimized = np.loadtxt(legacy_dir / "lindhard2_8.dat", dtype=np.float64)
+    legacy_linear = load_legacy_example_dataset("lindhard1_8.dat")
+    legacy_optimized = load_legacy_example_dataset("lindhard2_8.dat")
 
     np.testing.assert_allclose(legacy_linear[:, 0], q_values, rtol=0.0, atol=1.0e-14)
     np.testing.assert_allclose(legacy_optimized[:, 0], q_values, rtol=0.0, atol=1.0e-14)

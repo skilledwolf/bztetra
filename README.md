@@ -127,8 +127,9 @@ the current 2D surface, then run one of the plot-backed example scripts:
 
 ## Validation
 
-`bztetra` is checked against legacy shell matrices, direct parity with the
-legacy `libtetrabz` Python wrapper, and analytic reference cases. See
+`bztetra` is checked against tracked legacy shell/example fixtures, optional
+direct parity with the legacy `libtetrabz` Python wrapper, and analytic
+reference cases. See
 [docs/validation.md](docs/validation.md) for the exact coverage and
 reproduction commands.
 

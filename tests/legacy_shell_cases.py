@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 
 
-LEGACY_TEST_DIR = Path(__file__).resolve().parents[1] / "libtetra_original" / "test"
+LEGACY_TEST_DIR = Path(__file__).resolve().parent / "data" / "legacy" / "test"
 
 
 @dataclass(frozen=True)

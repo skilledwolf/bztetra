@@ -24,6 +24,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Configure GitHub Pages
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/configure-pages@v5
       - name: Install docs dependencies
         run: |
@@ -32,11 +33,13 @@ jobs:
       - name: Build docs
         run: python -m mkdocs build --strict
       - name: Upload GitHub Pages artifact
+        if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-pages-artifact@v4
         with:
           path: site
 
   deploy:
+    if: github.event_name == 'workflow_dispatch'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
