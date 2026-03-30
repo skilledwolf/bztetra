@@ -1,3 +1,6 @@
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as package_version
+
 from tetrabz import __version__
 from tetrabz import PreparedResponseEvaluator
 from tetrabz import build_integration_mesh
@@ -8,7 +11,13 @@ from tetrabz import small_tetrahedron_cut
 
 
 def test_package_version_is_exposed() -> None:
-    assert __version__ == "0.4.0"
+    assert __version__
+    try:
+        installed_version = package_version("tetrabz")
+    except PackageNotFoundError:
+        assert __version__ == "0+unknown"
+    else:
+        assert __version__ == installed_version
 
 
 def test_core_exports_are_available() -> None:

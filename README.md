@@ -8,6 +8,10 @@ array layouts instead of a literal line-by-line Fortran translation.
 The legacy source tree remains in `libtetra_original/` for reference and is
 intentionally ignored by the root git repository.
 
+Package versions are derived from git tags at build/install time. Untagged
+checkouts use a `0.0.0` fallback base, which Hatch VCS expands into a
+development version until the first release tag is created.
+
 The implementation strategy is:
 
 - NumPy for array orchestration and test/reference helpers.
@@ -36,7 +40,7 @@ The implementation strategy is:
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -e '.[dev]'
-pytest -q
+python -m pytest -q
 ```
 
 For plot-only installs without the rest of the dev tooling, use

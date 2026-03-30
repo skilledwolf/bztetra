@@ -1,6 +1,8 @@
 """Modern Python port of the legacy libtetrabz tetrahedron routines."""
 
-from ._version import __version__
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as package_version
+
 from .dos import density_of_states_weights
 from .dos import integrated_density_of_states_weights
 from .occupancy import FermiEnergySolution
@@ -22,6 +24,11 @@ from .geometry import tetrahedron_offsets
 from .geometry import tetrahedron_weight_matrix
 from .formulas import triangle_cut
 from .geometry import trilinear_interpolation_indices
+
+try:
+    __version__ = package_version("tetrabz")
+except PackageNotFoundError:
+    __version__ = "0+unknown"
 
 __all__ = [
     "complex_frequency_polarization_weights",
