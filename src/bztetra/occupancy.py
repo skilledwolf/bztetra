@@ -77,13 +77,18 @@ def _find_fermi_energy(
     lower = float(eig_flat.min())
     upper = float(eig_flat.max())
     local_weights = np.empty((mesh.local_point_count, eig_flat.shape[1]), dtype=np.float64)
+    vertex_point_sums = np.ascontiguousarray(mesh.tetrahedron_weight_matrix.sum(axis=1))
     fermi_energy = 0.0
     iteration = 0
 
     for iteration in range(1, max_iterations + 1):
         fermi_energy = 0.5 * (upper + lower)
-        local_weights = _occupation_weights_on_local_mesh(mesh, tetra_band_energies, fermi_energy)
-        electron_total = float(local_weights.sum())
+        electron_total = _occupation_total_on_local_mesh(
+            tetra_band_energies,
+            fermi_energy,
+            vertex_point_sums,
+            mesh.energy_grid_shape,
+        )
         if abs(electron_total - electrons_per_spin) < tolerance:
             break
         if electron_total < electrons_per_spin:
@@ -93,6 +98,7 @@ def _find_fermi_energy(
     else:
         raise RuntimeError("fermi level search did not converge")
 
+    local_weights = _occupation_weights_on_local_mesh(mesh, tetra_band_energies, fermi_energy)
     output_flat = interpolate_local_values(mesh, local_weights)
     return FermiEnergySolution(
         fermi_energy=fermi_energy,
@@ -148,6 +154,21 @@ def _occupation_weights_on_local_mesh(
     )
 
 
+def _occupation_total_on_local_mesh(
+    tetra_band_energies: FloatArray,
+    fermi_energy: float,
+    vertex_point_sums: FloatArray,
+    energy_grid_shape: tuple[int, int, int],
+) -> float:
+    normalization = 6 * int(np.prod(energy_grid_shape, dtype=np.int64))
+    return _occupation_total_on_local_mesh_numba(
+        tetra_band_energies,
+        fermi_energy,
+        vertex_point_sums,
+        normalization,
+    )
+
+
 def _unflatten_band_last(values: FloatArray, grid_shape: tuple[int, int, int]) -> FloatArray:
     band_count = values.shape[1]
     reshaped = values.reshape((grid_shape[2], grid_shape[1], grid_shape[0], band_count))
@@ -183,83 +204,14 @@ def _occupation_weights_on_local_mesh_numba(
                 sorted_order,
                 sorted_energies,
             )
-            vertex_weights[:] = 0.0
-
-            if sorted_energies[0] <= 0.0 < sorted_energies[1]:
-                accumulate_small_tetra_weight_sums(
-                    vertex_weights,
-                    sorted_order,
-                    0,
-                    sorted_energies,
-                    strict_energies,
-                    0.25,
-                    affine,
-                    coefficients,
-                )
-            elif sorted_energies[1] <= 0.0 < sorted_energies[2]:
-                accumulate_small_tetra_weight_sums(
-                    vertex_weights,
-                    sorted_order,
-                    1,
-                    sorted_energies,
-                    strict_energies,
-                    0.25,
-                    affine,
-                    coefficients,
-                )
-                accumulate_small_tetra_weight_sums(
-                    vertex_weights,
-                    sorted_order,
-                    2,
-                    sorted_energies,
-                    strict_energies,
-                    0.25,
-                    affine,
-                    coefficients,
-                )
-                accumulate_small_tetra_weight_sums(
-                    vertex_weights,
-                    sorted_order,
-                    3,
-                    sorted_energies,
-                    strict_energies,
-                    0.25,
-                    affine,
-                    coefficients,
-                )
-            elif sorted_energies[2] <= 0.0 < sorted_energies[3]:
-                accumulate_small_tetra_weight_sums(
-                    vertex_weights,
-                    sorted_order,
-                    4,
-                    sorted_energies,
-                    strict_energies,
-                    0.25,
-                    affine,
-                    coefficients,
-                )
-                accumulate_small_tetra_weight_sums(
-                    vertex_weights,
-                    sorted_order,
-                    5,
-                    sorted_energies,
-                    strict_energies,
-                    0.25,
-                    affine,
-                    coefficients,
-                )
-                accumulate_small_tetra_weight_sums(
-                    vertex_weights,
-                    sorted_order,
-                    6,
-                    sorted_energies,
-                    strict_energies,
-                    0.25,
-                    affine,
-                    coefficients,
-                )
-            elif sorted_energies[3] <= 0.0:
-                vertex_weights[:] = 0.25
+            _fill_occupation_vertex_weights_numba(
+                vertex_weights,
+                sorted_order,
+                sorted_energies,
+                strict_energies,
+                affine,
+                coefficients,
+            )
 
             for point_index in range(20):
                 total = 0.0
@@ -272,3 +224,132 @@ def _occupation_weights_on_local_mesh_numba(
 
     local_weights /= float(normalization)
     return local_weights
+
+
+@njit(cache=True)
+def _occupation_total_on_local_mesh_numba(
+    tetra_band_energies: FloatArray,
+    fermi_energy: float,
+    vertex_point_sums: FloatArray,
+    normalization: int,
+) -> float:
+    tetrahedron_count = tetra_band_energies.shape[0]
+    band_count = tetra_band_energies.shape[2]
+    electron_total = 0.0
+
+    sorted_order = np.empty(4, dtype=np.int64)
+    sorted_energies = np.empty(4, dtype=np.float64)
+    strict_energies = np.empty(4, dtype=np.float64)
+    vertex_weights = np.empty(4, dtype=np.float64)
+    affine = np.empty((4, 4), dtype=np.float64)
+    coefficients = np.empty((4, 4), dtype=np.float64)
+
+    for tetrahedron_index in range(tetrahedron_count):
+        for band_index in range(band_count):
+            sort4_shifted(
+                tetra_band_energies[tetrahedron_index, :, band_index],
+                fermi_energy,
+                sorted_order,
+                sorted_energies,
+            )
+            _fill_occupation_vertex_weights_numba(
+                vertex_weights,
+                sorted_order,
+                sorted_energies,
+                strict_energies,
+                affine,
+                coefficients,
+            )
+
+            for vertex_index in range(4):
+                electron_total += vertex_weights[vertex_index] * vertex_point_sums[vertex_index]
+
+    return electron_total / float(normalization)
+
+
+@njit(cache=True)
+def _fill_occupation_vertex_weights_numba(
+    vertex_weights: FloatArray,
+    sorted_order: npt.NDArray[np.int64],
+    sorted_energies: FloatArray,
+    strict_energies: FloatArray,
+    affine: FloatArray,
+    coefficients: FloatArray,
+) -> None:
+    vertex_weights[:] = 0.0
+
+    if sorted_energies[0] <= 0.0 < sorted_energies[1]:
+        accumulate_small_tetra_weight_sums(
+            vertex_weights,
+            sorted_order,
+            0,
+            sorted_energies,
+            strict_energies,
+            0.25,
+            affine,
+            coefficients,
+        )
+    elif sorted_energies[1] <= 0.0 < sorted_energies[2]:
+        accumulate_small_tetra_weight_sums(
+            vertex_weights,
+            sorted_order,
+            1,
+            sorted_energies,
+            strict_energies,
+            0.25,
+            affine,
+            coefficients,
+        )
+        accumulate_small_tetra_weight_sums(
+            vertex_weights,
+            sorted_order,
+            2,
+            sorted_energies,
+            strict_energies,
+            0.25,
+            affine,
+            coefficients,
+        )
+        accumulate_small_tetra_weight_sums(
+            vertex_weights,
+            sorted_order,
+            3,
+            sorted_energies,
+            strict_energies,
+            0.25,
+            affine,
+            coefficients,
+        )
+    elif sorted_energies[2] <= 0.0 < sorted_energies[3]:
+        accumulate_small_tetra_weight_sums(
+            vertex_weights,
+            sorted_order,
+            4,
+            sorted_energies,
+            strict_energies,
+            0.25,
+            affine,
+            coefficients,
+        )
+        accumulate_small_tetra_weight_sums(
+            vertex_weights,
+            sorted_order,
+            5,
+            sorted_energies,
+            strict_energies,
+            0.25,
+            affine,
+            coefficients,
+        )
+        accumulate_small_tetra_weight_sums(
+            vertex_weights,
+            sorted_order,
+            6,
+            sorted_energies,
+            strict_energies,
+            0.25,
+            affine,
+            coefficients,
+        )
+    elif sorted_energies[3] <= 0.0:
+        vertex_weights[:] = 0.25

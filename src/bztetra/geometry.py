@@ -54,6 +54,8 @@ class IntegrationMesh:
     global_point_indices: IntArray
     local_point_indices: IntArray
     fractional_kpoints: FloatArray | None
+    interpolation_indices: IntArray | None
+    interpolation_weights: FloatArray | None
 
     @property
     def tetrahedron_count(self) -> int:
@@ -200,8 +202,14 @@ def _build_integration_mesh_from_normalized_inputs(
     global_indices = _build_global_point_indices(offsets, energy_grid_shape)
 
     fractional_kpoints: FloatArray | None = None
+    interpolation_indices: IntArray | None = None
+    interpolation_weights: FloatArray | None = None
     if interpolation_required:
         local_indices, fractional_kpoints = _localize_point_indices(global_indices, energy_grid_shape)
+        interpolation_indices, interpolation_weights = _build_interpolation_stencils(
+            weight_grid_shape,
+            fractional_kpoints,
+        )
     else:
         local_indices = global_indices.copy()
 
@@ -215,6 +223,8 @@ def _build_integration_mesh_from_normalized_inputs(
         global_point_indices=global_indices,
         local_point_indices=local_indices,
         fractional_kpoints=fractional_kpoints,
+        interpolation_indices=interpolation_indices,
+        interpolation_weights=interpolation_weights,
     )
 
 
@@ -309,6 +319,22 @@ def _localize_point_indices(
         )
 
     return local_indices, fractional_kpoints
+
+
+def _build_interpolation_stencils(
+    grid_shape: GridShape,
+    fractional_kpoints: FloatArray,
+) -> tuple[IntArray, FloatArray]:
+    point_count = fractional_kpoints.shape[0]
+    interpolation_indices = np.empty((point_count, 8), dtype=np.int64)
+    interpolation_weights = np.empty((point_count, 8), dtype=np.float64)
+
+    for point_index in range(point_count):
+        indices, weights = trilinear_interpolation_indices(grid_shape, fractional_kpoints[point_index])
+        interpolation_indices[point_index] = indices
+        interpolation_weights[point_index] = weights
+
+    return interpolation_indices, interpolation_weights
 
 
 def _flatten_index(coords: npt.ArrayLike, grid_shape: GridShape) -> np.int64:

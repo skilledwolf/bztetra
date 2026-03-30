@@ -5,7 +5,6 @@ import numpy.typing as npt
 from numba import njit
 
 from .geometry import IntegrationMesh
-from .geometry import trilinear_interpolation_indices
 
 
 IntArray = npt.NDArray[np.int64]
@@ -59,22 +58,20 @@ def interpolate_local_values(mesh: IntegrationMesh, local_values: npt.NDArray[np
     if not mesh.interpolation_required:
         return local_values
 
-    if mesh.fractional_kpoints is None:
-        raise ValueError("interpolated mesh requires fractional k-points")
+    if mesh.interpolation_indices is None or mesh.interpolation_weights is None:
+        raise ValueError("interpolated mesh requires cached interpolation stencils")
 
-    flattened_features = local_values.reshape(local_values.shape[0], -1)
+    flattened_features = np.ascontiguousarray(local_values.reshape(local_values.shape[0], -1))
     output_flat = np.zeros(
         (int(np.prod(mesh.weight_grid_shape, dtype=np.int64)), flattened_features.shape[1]),
         dtype=flattened_features.dtype,
     )
-    for local_index, kpoint in enumerate(mesh.fractional_kpoints):
-        indices, weights = trilinear_interpolation_indices(mesh.weight_grid_shape, kpoint)
-        for feature_index in range(flattened_features.shape[1]):
-            np.add.at(
-                output_flat[:, feature_index],
-                indices,
-                weights * flattened_features[local_index, feature_index],
-            )
+    _interpolate_local_values_numba(
+        mesh.interpolation_indices,
+        mesh.interpolation_weights,
+        flattened_features,
+        output_flat,
+    )
     return output_flat.reshape((output_flat.shape[0],) + local_values.shape[1:])
 
 
@@ -100,3 +97,25 @@ def _interpolated_tetrahedron_energies_numba(
                 tetra_band_energies[tetrahedron_index, vertex_index, band_index] = total
 
     return tetra_band_energies
+
+
+@njit(cache=True)
+def _interpolate_local_values_numba(
+    interpolation_indices,
+    interpolation_weights,
+    flattened_features,
+    output_flat,
+) -> None:
+    local_point_count = interpolation_indices.shape[0]
+    feature_count = flattened_features.shape[1]
+
+    for local_index in range(local_point_count):
+        for stencil_index in range(8):
+            weight = interpolation_weights[local_index, stencil_index]
+            if weight == 0.0:
+                continue
+            output_index = interpolation_indices[local_index, stencil_index]
+            for feature_index in range(feature_count):
+                output_flat[output_index, feature_index] += (
+                    weight * flattened_features[local_index, feature_index]
+                )
