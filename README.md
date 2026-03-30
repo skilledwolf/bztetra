@@ -93,6 +93,21 @@ sum only over the k-grid axes.
 See [docs/physics.md](docs/physics.md) for the key formulas and
 [docs/examples.md](docs/examples.md) for worked examples with output plots.
 
+## 2D Triangle Method
+
+For genuinely 2D problems, switch namespaces and use `bztetra.twod`.
+`bztetra.twod` keeps the same physics-facing routine names for occupations,
+DOS, overlap, Lindhard-style polarization, and real- or complex-frequency
+response, but on `(nx, ny, nbands)` arrays with Brillouin-zone **area**
+normalization and the linear triangle method.
+
+Start with [docs/two_dimensional_plan.md](docs/two_dimensional_plan.md) for
+the current 2D surface, then run one of the plot-backed example scripts:
+
+- [examples/plot_twod_square_lattice_dos.py](examples/plot_twod_square_lattice_dos.py)
+- [examples/plot_twod_phase_space_overlap.py](examples/plot_twod_phase_space_overlap.py)
+- [examples/plot_twod_lindhard.py](examples/plot_twod_lindhard.py)
+
 ## Examples
 
 - [docs/quickstart.md](docs/quickstart.md): the shortest path from eigenvalues

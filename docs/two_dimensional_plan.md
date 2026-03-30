@@ -1,10 +1,11 @@
-# Two-Dimensional Plan
+# 2D Triangle Method
 
-The top-level `bztetra` API still supports **3D reciprocal grids only**. That
-is deliberate: the original implementation is built around tetrahedra,
-trilinear interpolation, and Brillouin-zone **volume** integration.
+`bztetra.twod` is the package's genuine 2D public surface. The top-level
+`bztetra` API still supports **3D reciprocal grids only**, and that is
+deliberate: the original implementation is built around tetrahedra, trilinear
+interpolation, and Brillouin-zone **volume** integration.
 
-An initial 2D slice now exists under `bztetra.twod`:
+The current 2D linear triangle-method surface lives under `bztetra.twod`:
 
 - regular-grid 2D geometry and triangle decomposition,
 - bilinear interpolation onto a distinct output grid,
@@ -19,9 +20,9 @@ An initial 2D slice now exists under `bztetra.twod`:
 - `complex_frequency_polarization_weights`,
 - `prepare_response_evaluator`.
 
-The current 2D response path is implemented and validated for the exact linear
-triangle method. The main remaining open question is whether 2D needs a
-separate improved/optimized correction beyond the current linear kernels.
+This page documents what is already available and what still remains open. The
+main unresolved 2D question is whether the package needs an improved/optimized
+triangle-weight correction beyond the current linear kernels.
 
 ## What Not To Do
 

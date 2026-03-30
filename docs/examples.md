@@ -124,6 +124,46 @@ python examples/plot_phase_space_and_nesting.py
   </figcaption>
 </figure>
 
+## 2D Square-Lattice DOS
+
+For a genuinely 2D problem, switch to `bztetra.twod` instead of padding a fake
+third axis. The square-lattice band
+
+\[
+\varepsilon(\mathbf{k}) = -2(\cos k_x + \cos k_y)
+\]
+
+is a useful first check because the DOS shows the expected van Hove feature at
+\(E = 0\) and the integrated DOS crosses half filling at the same energy.
+
+Script:
+
+```bash
+python examples/plot_twod_square_lattice_dos.py
+```
+
+Minimal pattern:
+
+```python
+import numpy as np
+from bztetra.twod import density_of_states_weights
+
+bvec = 2.0 * np.pi * np.eye(2)
+energies = np.linspace(-4.0, 4.0, 401)
+eigenvalues = build_square_lattice_band((128, 128))
+
+weights = density_of_states_weights(bvec, eigenvalues, energies, method="linear")
+dos_curve = weights.sum(axis=(1, 2, 3)) * abs(np.linalg.det(bvec))
+```
+
+<figure markdown>
+  ![2D square-lattice DOS](assets/plots/twod_square_lattice_dos.png)
+  <figcaption>
+    The 2D triangle-method DOS reproduces the square-lattice van Hove peak,
+    and the integrated DOS reaches half filling at the band-center singularity.
+  </figcaption>
+</figure>
+
 ## 2D Free-Electron Response
 
 The 2D `bztetra.twod` path now has plot-first review scripts for the linear
@@ -131,6 +171,22 @@ triangle response kernels:
 
 - `python examples/plot_twod_phase_space_overlap.py`
 - `python examples/plot_twod_lindhard.py`
+
+<figure markdown>
+  ![2D free-electron phase-space overlap](assets/plots/twod_phase_space_overlap.png)
+  <figcaption>
+    The `bztetra.twod` overlap weights follow the exact circular-segment phase
+    space and close at the expected \(2k_F\) threshold.
+  </figcaption>
+</figure>
+
+<figure markdown>
+  ![2D free-electron Lindhard function](assets/plots/twod_lindhard.png)
+  <figcaption>
+    The 2D static polarization reproduces the constant small-\(q\) plateau and
+    the Kohn cusp at \(2k_F\).
+  </figcaption>
+</figure>
 
 ## Complex-Frequency Polarization On The Matsubara Axis
 

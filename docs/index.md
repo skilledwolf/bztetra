@@ -5,7 +5,7 @@ k-grids, aimed at electronic-structure users who want physically meaningful
 Brillouin-zone weights without going through the legacy `libtetrabz` wrapper.
 The top-level API is 3D-only, while the parallel 2D linear triangle-method
 surface now lives under `bztetra.twod`; see
-[Two-Dimensional Plan](two_dimensional_plan.md).
+[2D Triangle Method](two_dimensional_plan.md).
 
 !!! warning "Pre-release status"
 
@@ -28,9 +28,17 @@ surface now lives under `bztetra.twod`; see
 
     ---
 
-    Minimal examples with actual output plots for DOS and response functions.
+    Minimal examples with actual output plots for 3D and 2D DOS and response functions.
 
     [See the examples](examples.md)
+
+-   __2D Triangle Method__
+
+    ---
+
+    Use `bztetra.twod` for genuinely 2D occupations, DOS, and response work.
+
+    [Open the 2D guide](two_dimensional_plan.md)
 
 -   __Quickstart__
 
@@ -77,7 +85,7 @@ If you want the docs in physicist order rather than package order:
 3. Use [Quickstart](quickstart.md) only to check array conventions and shapes.
 4. Use [API Reference](api.md) when you need signatures, not when you need the
    physical idea first.
-5. Read [Two-Dimensional Plan](two_dimensional_plan.md) before attempting any
+5. Read [2D Triangle Method](two_dimensional_plan.md) before attempting any
    genuinely 2D use case.
 
 ## Original Project
