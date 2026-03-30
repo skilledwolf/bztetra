@@ -17,8 +17,9 @@ The implementation strategy is:
 - Shared setup is also optimized now: direct repeated calls reuse cached mesh
   geometry internally, and tetrahedron interpolation is compiled instead of
   running in Python loops.
-- Multiband dynamic-response kernels now parallelize over source bands, which
-  materially improves `fermigr` and `polcmplx` once band counts grow.
+- Multiband dynamic-response kernels now parallelize over the band axes, with
+  larger pair-count workloads using a higher-parallelism band-pair path for
+  `fermigr` and `polcmplx`.
 - A prepared response API for repeated sweeps on fixed bands, so
   `fermigr`/`polcmplx` users can reuse mesh and tetrahedron setup instead of
   rebuilding it for every energy grid.
@@ -123,4 +124,17 @@ prepared `fermigr` / `polcmplx` sweeps, run:
 
 ```bash
 PYTHONPATH=src .venv/bin/python benchmarks/benchmark_response_multiband.py --grid 16 --bands 6 --energy-count 16
+```
+
+For a routine-by-routine comparison against the legacy `libtetrabz` Python
+wrapper, first install the local legacy package into `.venv`:
+
+```bash
+.venv/bin/pip install -e ./libtetra_original/python
+```
+
+Then run:
+
+```bash
+PYTHONPATH=src .venv/bin/python benchmarks/benchmark_compare_libtetrabz.py --grid 8 --repeats 3
 ```
