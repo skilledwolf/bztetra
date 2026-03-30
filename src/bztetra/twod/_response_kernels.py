@@ -1361,18 +1361,25 @@ def _complex_basis_sorted_weights_numba(
     delta_tolerance = _field_tolerance3(delta1, delta2, delta3, 0.0)
     span = delta3 - delta1
     mean_delta = (delta1 + delta2 + delta3) / 3.0
+    energy_real = energy.real
+    energy_imag = energy.imag
 
     if span <= delta_tolerance:
-        denominator = mean_delta + energy
-        if abs(denominator) > delta_tolerance:
-            fallback = (triangle_area / 3.0) / denominator
+        denominator_real = mean_delta + energy_real
+        denominator_imag = energy_imag
+        denominator_norm = (
+            denominator_real * denominator_real + denominator_imag * denominator_imag
+        )
+        if denominator_norm > delta_tolerance * delta_tolerance:
+            scale = (triangle_area / 3.0) / denominator_norm
+            fallback = scale * (denominator_real - 1j * denominator_imag)
             sorted_weights[0] = fallback
             sorted_weights[1] = fallback
             sorted_weights[2] = fallback
             return
         raise RuntimeError("encountered singular condition in complex_frequency_polarization_weights")
 
-    if abs(energy.imag) <= delta_tolerance and abs(energy.real) <= delta_tolerance:
+    if abs(energy_imag) <= delta_tolerance and abs(energy_real) <= delta_tolerance:
         real_sorted = np.empty(3, dtype=np.float64)
         _static_basis_sorted_weights_numba(real_sorted, delta1, delta2, delta3, triangle_area)
         sorted_weights[0] = real_sorted[0]
@@ -1383,28 +1390,69 @@ def _complex_basis_sorted_weights_numba(
     low_width = delta2 - delta1
     high_width = delta3 - delta2
     full_width = delta3 - delta1
-    z1 = delta1 + energy
-    z3 = delta3 + energy
+    z1_real = delta1 + energy_real
+    z3_real = delta3 + energy_real
+
+    weight0_real = 0.0
+    weight0_imag = 0.0
+    weight1_real = 0.0
+    weight1_imag = 0.0
+    weight2_real = 0.0
+    weight2_imag = 0.0
 
     if low_width > delta_tolerance:
-        r1 = _complex_lower_interval_r1(low_width, z1)
-        r2 = _complex_lower_interval_r2(low_width, z1)
-        sorted_weights[0] += triangle_area * (
-            2.0 * r1 / (low_width * full_width)
-            - (1.0 / (low_width * low_width * full_width) + 1.0 / (low_width * full_width * full_width)) * r2
+        r1_real, r1_imag = _complex_lower_interval_r1_parts(
+            low_width,
+            z1_real,
+            energy_imag,
         )
-        sorted_weights[1] += triangle_area * r2 / (low_width * low_width * full_width)
-        sorted_weights[2] += triangle_area * r2 / (low_width * full_width * full_width)
+        r2_real, r2_imag = _complex_lower_interval_r2_parts(
+            low_width,
+            z1_real,
+            energy_imag,
+        )
+        r1_scale = 2.0 * triangle_area / (low_width * full_width)
+        r2_scale_0 = triangle_area * (
+            1.0 / (low_width * low_width * full_width)
+            + 1.0 / (low_width * full_width * full_width)
+        )
+        r2_scale_1 = triangle_area / (low_width * low_width * full_width)
+        r2_scale_2 = triangle_area / (low_width * full_width * full_width)
+        weight0_real += r1_scale * r1_real - r2_scale_0 * r2_real
+        weight0_imag += r1_scale * r1_imag - r2_scale_0 * r2_imag
+        weight1_real += r2_scale_1 * r2_real
+        weight1_imag += r2_scale_1 * r2_imag
+        weight2_real += r2_scale_2 * r2_real
+        weight2_imag += r2_scale_2 * r2_imag
 
     if high_width > delta_tolerance:
-        s1 = _complex_upper_interval_s1(high_width, z3)
-        s2 = _complex_upper_interval_s2(high_width, z3)
-        sorted_weights[0] += triangle_area * s2 / (full_width * full_width * high_width)
-        sorted_weights[1] += triangle_area * s2 / (full_width * high_width * high_width)
-        sorted_weights[2] += triangle_area * (
-            2.0 * s1 / (full_width * high_width)
-            - (1.0 / (full_width * full_width * high_width) + 1.0 / (full_width * high_width * high_width)) * s2
+        s1_real, s1_imag = _complex_upper_interval_s1_parts(
+            high_width,
+            z3_real,
+            energy_imag,
         )
+        s2_real, s2_imag = _complex_upper_interval_s2_parts(
+            high_width,
+            z3_real,
+            energy_imag,
+        )
+        s2_scale_0 = triangle_area / (full_width * full_width * high_width)
+        s2_scale_1 = triangle_area / (full_width * high_width * high_width)
+        s1_scale = 2.0 * triangle_area / (full_width * high_width)
+        s2_scale_2 = triangle_area * (
+            1.0 / (full_width * full_width * high_width)
+            + 1.0 / (full_width * high_width * high_width)
+        )
+        weight0_real += s2_scale_0 * s2_real
+        weight0_imag += s2_scale_0 * s2_imag
+        weight1_real += s2_scale_1 * s2_real
+        weight1_imag += s2_scale_1 * s2_imag
+        weight2_real += s1_scale * s1_real - s2_scale_2 * s2_real
+        weight2_imag += s1_scale * s1_imag - s2_scale_2 * s2_imag
+
+    sorted_weights[0] = weight0_real + 1j * weight0_imag
+    sorted_weights[1] = weight1_real + 1j * weight1_imag
+    sorted_weights[2] = weight2_real + 1j * weight2_imag
 
 
 @njit(cache=True)
@@ -1432,23 +1480,75 @@ def _upper_interval_s2(width, offset) -> float:
 
 
 @njit(cache=True)
-def _complex_lower_interval_r1(width, offset):
-    return width - offset * np.log((offset + width) / offset)
+def _complex_lower_interval_r1_parts(width, offset_real, offset_imag) -> tuple[float, float]:
+    log_real, log_imag = _complex_log_ratio_add_width(width, offset_real, offset_imag)
+    return (
+        width - (offset_real * log_real - offset_imag * log_imag),
+        -(offset_real * log_imag + offset_imag * log_real),
+    )
 
 
 @njit(cache=True)
-def _complex_lower_interval_r2(width, offset):
-    return 0.5 * width * width - offset * width + offset * offset * np.log((offset + width) / offset)
+def _complex_lower_interval_r2_parts(width, offset_real, offset_imag) -> tuple[float, float]:
+    log_real, log_imag = _complex_log_ratio_add_width(width, offset_real, offset_imag)
+    square_real = offset_real * offset_real - offset_imag * offset_imag
+    square_imag = 2.0 * offset_real * offset_imag
+    return (
+        0.5 * width * width
+        - offset_real * width
+        + square_real * log_real
+        - square_imag * log_imag,
+        -offset_imag * width
+        + square_real * log_imag
+        + square_imag * log_real,
+    )
 
 
 @njit(cache=True)
-def _complex_upper_interval_s1(width, offset):
-    return -width + offset * np.log(offset / (offset - width))
+def _complex_upper_interval_s1_parts(width, offset_real, offset_imag) -> tuple[float, float]:
+    log_real, log_imag = _complex_log_ratio_sub_width(width, offset_real, offset_imag)
+    return (
+        -width + (offset_real * log_real - offset_imag * log_imag),
+        offset_real * log_imag + offset_imag * log_real,
+    )
 
 
 @njit(cache=True)
-def _complex_upper_interval_s2(width, offset):
-    return -0.5 * width * width - offset * width + offset * offset * np.log(offset / (offset - width))
+def _complex_upper_interval_s2_parts(width, offset_real, offset_imag) -> tuple[float, float]:
+    log_real, log_imag = _complex_log_ratio_sub_width(width, offset_real, offset_imag)
+    square_real = offset_real * offset_real - offset_imag * offset_imag
+    square_imag = 2.0 * offset_real * offset_imag
+    return (
+        -0.5 * width * width
+        - offset_real * width
+        + square_real * log_real
+        - square_imag * log_imag,
+        -offset_imag * width
+        + square_real * log_imag
+        + square_imag * log_real,
+    )
+
+
+@njit(cache=True)
+def _complex_log_ratio_add_width(width, offset_real, offset_imag) -> tuple[float, float]:
+    numerator_real = offset_real + width
+    numerator_norm = numerator_real * numerator_real + offset_imag * offset_imag
+    denominator_norm = offset_real * offset_real + offset_imag * offset_imag
+    return (
+        0.5 * np.log(numerator_norm / denominator_norm),
+        np.arctan2(offset_imag, numerator_real) - np.arctan2(offset_imag, offset_real),
+    )
+
+
+@njit(cache=True)
+def _complex_log_ratio_sub_width(width, offset_real, offset_imag) -> tuple[float, float]:
+    denominator_real = offset_real - width
+    numerator_norm = offset_real * offset_real + offset_imag * offset_imag
+    denominator_norm = denominator_real * denominator_real + offset_imag * offset_imag
+    return (
+        0.5 * np.log(numerator_norm / denominator_norm),
+        np.arctan2(offset_imag, offset_real) - np.arctan2(offset_imag, denominator_real),
+    )
 
 
 @njit(cache=True)

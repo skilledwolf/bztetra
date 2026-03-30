@@ -6,6 +6,7 @@ import importlib.util
 import numpy as np
 import pytest
 
+from bztetra.twod import complex_frequency_polarization_weights
 from bztetra.twod import fermi_golden_rule_weights
 from bztetra.twod._grids import interpolated_triangle_energies
 from bztetra.twod._grids import normalize_eigenvalues
@@ -196,3 +197,31 @@ def test_twod_complex_pair_parallel_kernel_matches_serial_local_mesh() -> None:
     )
 
     np.testing.assert_allclose(pair_parallel, serial, rtol=1.0e-12, atol=1.0e-12)
+
+
+def test_twod_complex_frequency_preserves_complex_energy_order() -> None:
+    reciprocal_vectors, occupied, target = synthetic_multiband_response_case(band_count=4)
+    energies = np.array(
+        [0.0 + 0.4j, 0.2 + 0.9j, -0.1 + 1.1j, 0.4 + 1.6j],
+        dtype=np.complex128,
+    )
+    order = np.array([2, 0, 3, 1], dtype=np.int64)
+
+    ordered = complex_frequency_polarization_weights(
+        reciprocal_vectors,
+        occupied,
+        target,
+        energies,
+        weight_grid_shape=occupied.shape[:2],
+        method="linear",
+    )
+    shuffled = complex_frequency_polarization_weights(
+        reciprocal_vectors,
+        occupied,
+        target,
+        energies[order],
+        weight_grid_shape=occupied.shape[:2],
+        method="linear",
+    )
+
+    np.testing.assert_allclose(shuffled, ordered[order], rtol=1.0e-12, atol=1.0e-12)
