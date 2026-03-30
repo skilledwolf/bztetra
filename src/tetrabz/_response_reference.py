@@ -5,37 +5,6 @@ import numpy.typing as npt
 
 from ._grids import FloatArray
 from .formulas import small_tetrahedron_cut
-from .formulas import triangle_cut
-
-
-def _accumulate_small_tetra_response(
-    weights: FloatArray,
-    kind: str,
-    sorted_order: npt.NDArray[np.int64],
-    sorted_occupied: FloatArray,
-    sorted_target: FloatArray,
-    inner_kernel,
-) -> None:
-    cut = small_tetrahedron_cut(kind, sorted_occupied)
-    transformed_occupied = cut.coefficients @ sorted_occupied
-    transformed_target = cut.coefficients @ sorted_target
-    weights[:, sorted_order] += cut.volume_factor * (
-        inner_kernel(transformed_occupied, transformed_target) @ cut.coefficients
-    )
-
-
-def _accumulate_triangle_response(
-    weights: FloatArray,
-    kind: str,
-    sorted_order: npt.NDArray[np.int64],
-    sorted_source: FloatArray,
-    sorted_target: FloatArray,
-) -> None:
-    cut = triangle_cut(kind, sorted_source)
-    transformed_target = cut.coefficients @ sorted_target
-    weights[:, sorted_order] += cut.volume_factor * (
-        _double_delta_secondary_weights(transformed_target) @ cut.coefficients
-    )
 
 
 def _accumulate_small_tetra_polstat_outer(
@@ -55,77 +24,6 @@ def _accumulate_small_tetra_polstat_outer(
         _polstat_secondary_weights(transformed_occupied, transformed_target) @ cut.coefficients
     )
 
-
-def _double_step_secondary_weights(
-    occupied_vertices: FloatArray, target_vertices: FloatArray
-) -> FloatArray:
-    target_band_count = target_vertices.shape[1]
-    weights = np.zeros((target_band_count, 4), dtype=np.float64)
-
-    for target_band_index in range(target_band_count):
-        energy_difference = -occupied_vertices + target_vertices[:, target_band_index]
-        sorted_order = np.argsort(energy_difference)
-        sorted_difference = energy_difference[sorted_order]
-
-        if abs(sorted_difference[0]) < 1.0e-8 and abs(sorted_difference[3]) < 1.0e-8:
-            weights[target_band_index] = 0.125
-            continue
-
-        sorted_weights = np.zeros(4, dtype=np.float64)
-        if (sorted_difference[0] <= 0.0 < sorted_difference[1]) or (
-            sorted_difference[0] < 0.0 <= sorted_difference[1]
-        ):
-            _accumulate_small_tetra_step(sorted_weights, "a1", sorted_difference)
-        elif (sorted_difference[1] <= 0.0 < sorted_difference[2]) or (
-            sorted_difference[1] < 0.0 <= sorted_difference[2]
-        ):
-            for kind in ("b1", "b2", "b3"):
-                _accumulate_small_tetra_step(sorted_weights, kind, sorted_difference)
-        elif (sorted_difference[2] <= 0.0 < sorted_difference[3]) or (
-            sorted_difference[2] < 0.0 <= sorted_difference[3]
-        ):
-            for kind in ("c1", "c2", "c3"):
-                _accumulate_small_tetra_step(sorted_weights, kind, sorted_difference)
-        elif sorted_difference[3] <= 0.0:
-            sorted_weights[:] = 0.25
-
-        weights[target_band_index, sorted_order] = sorted_weights
-
-    return weights
-
-
-def _double_delta_secondary_weights(triangle_vertices: FloatArray) -> FloatArray:
-    target_band_count = triangle_vertices.shape[1]
-    weights = np.zeros((target_band_count, 3), dtype=np.float64)
-
-    for target_band_index in range(target_band_count):
-        energies = triangle_vertices[:, target_band_index]
-        if float(np.max(np.abs(energies))) < 1.0e-10:
-            raise RuntimeError("encountered nesting condition in nesting_function_weights")
-
-        sorted_order = np.argsort(energies)
-        sorted_energies = _normalize_sorted_triangle_energies(energies[sorted_order])
-        affine = _triangle_affine_coefficients(sorted_energies)
-        sorted_weights = np.zeros(3, dtype=np.float64)
-
-        if (sorted_energies[0] < 0.0 <= sorted_energies[1]) or (
-            sorted_energies[0] <= 0.0 < sorted_energies[1]
-        ):
-            volume_factor = affine[1, 0] / (sorted_energies[2] - sorted_energies[0])
-            sorted_weights[0] = volume_factor * (affine[0, 1] + affine[0, 2])
-            sorted_weights[1] = volume_factor * affine[1, 0]
-            sorted_weights[2] = volume_factor * affine[2, 0]
-        elif (sorted_energies[1] <= 0.0 < sorted_energies[2]) or (
-            sorted_energies[1] < 0.0 <= sorted_energies[2]
-        ):
-            volume_factor = affine[1, 2] / (sorted_energies[2] - sorted_energies[0])
-            sorted_weights[0] = volume_factor * affine[0, 2]
-            sorted_weights[1] = volume_factor * affine[1, 2]
-            sorted_weights[2] = volume_factor * (affine[2, 0] + affine[2, 1])
-
-        weights[target_band_index, sorted_order] = sorted_weights
-
-    return weights
 
 
 def _polstat_secondary_weights(
@@ -429,34 +327,3 @@ def _polstat_1211(g1: float, g2: float, log1: float, log2: float) -> float:
 def _check_polstat_weights(weights: FloatArray, label: str) -> None:
     if np.any(weights < 0.0):
         raise RuntimeError(f"negative static_polarization_weights values encountered in {label}")
-
-
-def _accumulate_small_tetra_step(
-    weights: FloatArray, kind: str, sorted_energies: FloatArray
-) -> None:
-    cut = small_tetrahedron_cut(kind, sorted_energies)
-    weights += cut.volume_factor * cut.coefficients.sum(axis=0) * 0.25
-
-
-def _normalize_sorted_triangle_energies(energies: npt.ArrayLike) -> FloatArray:
-    values = np.asarray(energies, dtype=np.float64)
-    if values.shape != (3,):
-        raise ValueError(f"expected three sorted energies, got shape {values.shape!r}")
-    if not np.all(np.isfinite(values)):
-        raise ValueError("triangle energies must be finite")
-
-    adjusted = values.copy()
-    if np.any(np.diff(adjusted) < 0.0):
-        raise ValueError("triangle energies must be sorted in nondecreasing order")
-    for index in range(1, adjusted.size):
-        if adjusted[index] <= adjusted[index - 1]:
-            adjusted[index] = np.nextafter(adjusted[index - 1], np.inf)
-    return adjusted
-
-
-def _triangle_affine_coefficients(energies: FloatArray) -> FloatArray:
-    coefficients = np.full((3, 3), np.nan, dtype=np.float64)
-    for column, energy in enumerate(energies):
-        mask = np.arange(3) != column
-        coefficients[mask, column] = -energy / (energies[mask] - energy)
-    return coefficients
