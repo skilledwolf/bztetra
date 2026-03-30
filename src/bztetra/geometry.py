@@ -346,7 +346,10 @@ def _flatten_index(coords: npt.ArrayLike, grid_shape: GridShape) -> np.int64:
 def _normalize_grid_shape(shape: GridShape | tuple[int, int, int]) -> GridShape:
     values = tuple(int(item) for item in shape)
     if len(values) != 3 or any(item <= 0 for item in values):
-        raise ValueError(f"expected three positive grid dimensions, got {shape!r}")
+        raise ValueError(
+            "bztetra currently supports only 3D regular grids; "
+            f"expected three positive grid dimensions, got {shape!r}"
+        )
     return values
 
 
@@ -361,5 +364,8 @@ def _normalize_method(method: int | TetraMethod) -> int:
 def _normalize_reciprocal_vectors(reciprocal_vectors: npt.ArrayLike) -> FloatArray:
     basis = np.asarray(reciprocal_vectors, dtype=np.float64)
     if basis.shape != (3, 3):
-        raise ValueError(f"expected reciprocal vectors with shape (3, 3), got {basis.shape!r}")
+        raise ValueError(
+            "bztetra currently supports only 3D reciprocal bases; "
+            f"expected reciprocal vectors with shape (3, 3), got {basis.shape!r}"
+        )
     return basis

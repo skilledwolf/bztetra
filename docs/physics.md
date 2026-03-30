@@ -4,6 +4,10 @@ This page is the physics-facing map of the package: what each routine computes,
 how the returned weights relate to standard Brillouin-zone formulas, and how to
 turn those weights into observables.
 
+All formulas on this page refer to the current 3D package. Genuine 2D support
+will require a separate triangle-method implementation with Brillouin-zone area
+normalization rather than the present tetrahedron path with `nz=1`.
+
 ## One Core Idea
 
 `bztetra` does **not** try to hide the k-resolved weight field from you. The

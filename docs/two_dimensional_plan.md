@@ -1,0 +1,167 @@
+# Two-Dimensional Plan
+
+`bztetra` currently supports **3D reciprocal grids only**. That is deliberate:
+the current implementation is built around tetrahedra, trilinear interpolation,
+and Brillouin-zone **volume** integration.
+
+## What Not To Do
+
+Do **not** try to treat a 2D problem as a fake `(nx, ny, 1)` 3D problem.
+
+That shortcut is wrong for three separate reasons:
+
+1. The measure is wrong: a 2D Brillouin-zone integral uses **area**, not
+   volume.
+2. The cell decomposition is wrong: 2D cells split into triangles, not
+   tetrahedra.
+3. The interpolation path is wrong: 2D remapping needs bilinear stencils, not
+   the current trilinear machinery.
+
+## Recommended Strategy
+
+If 2D support lands, it should be a **separate triangle-method path** that
+lives beside the current 3D implementation rather than inside it behind
+shape-dependent branches.
+
+The intended design is:
+
+- keep the current package behavior explicit and 3D-only;
+- add a dedicated 2D mesh and triangle decomposition;
+- keep the public routine vocabulary aligned where the physics matches;
+- avoid mixed 2D/3D Numba hot kernels.
+
+## Capability Assessment
+
+The 2D work splits naturally into a straightforward part and a derivation-heavy
+part.
+
+### I Can Implement Confidently
+
+These pieces can be implemented directly from the current code structure plus
+standard triangle-interpolation numerics:
+
+- 2D regular-grid geometry and indexing on `(nx, ny)` meshes
+- triangle decomposition of each 2D cell
+- bilinear interpolation onto a distinct output grid
+- `occupation_weights`
+- `solve_fermi_energy`
+- `density_of_states_weights`
+- `integrated_density_of_states_weights`
+- analytic checks such as constant 2D free-electron DOS
+- plot-first 2D review examples
+
+### I Want Expert Derivation Review Before Implementing
+
+The response-family routines should not be implemented from intuition alone.
+They need a clean 2D triangle-method derivation and edge-case strategy first:
+
+- `phase_space_overlap_weights`
+- `nesting_function_weights`
+- `static_polarization_weights`
+- `fermi_golden_rule_weights`
+- `complex_frequency_polarization_weights`
+
+The main risks are degeneracies, grazing intersections, exact-zero energy
+differences, and getting the piecewise per-triangle formulas wrong while still
+matching the desired k-resolved weight semantics.
+
+## Proposed Implementation Order
+
+1. Add a dedicated 2D internal namespace such as `bztetra.twod`.
+2. Implement 2D mesh geometry, triangle decomposition, and bilinear
+   interpolation.
+3. Implement 2D `occupation_weights`, `solve_fermi_energy`,
+   `density_of_states_weights`, and `integrated_density_of_states_weights`.
+4. Add analytic checks and plot-first examples:
+   - constant 2D free-electron DOS,
+   - integrated DOS trends,
+   - a square-lattice DOS figure with the expected van Hove structure.
+5. Only then add the 2D response family after a formula review.
+
+## Expert Handoff Prompt
+
+If a stronger computational-physics model is available, this is the prompt I
+would use before implementing the 2D response family.
+
+```text
+You are helping design a true 2D triangle-method extension for an existing
+Python + Numba Brillouin-zone integration package called `bztetra`.
+
+Context:
+- The current package is 3D-only and implements the modernized equivalents of
+  libtetrabz’s public routine surface:
+  occupation_weights
+  solve_fermi_energy
+  density_of_states_weights
+  integrated_density_of_states_weights
+  phase_space_overlap_weights
+  nesting_function_weights
+  static_polarization_weights
+  fermi_golden_rule_weights
+  complex_frequency_polarization_weights
+- Public inputs are regular-grid band energies on arrays shaped like:
+  3D single-spectrum: (nx, ny, nz, nbands)
+  3D two-spectrum: occupied and target arrays each shaped (nx, ny, nz, nbands)
+- Public outputs are k-resolved weights on a regular output grid, not already
+  integrated observables.
+- The current 3D code uses:
+  - tetrahedral decomposition of each cell,
+  - trilinear interpolation when output and energy grids differ,
+  - Numba hot kernels,
+  - explicit k-resolved weights that are summed by the caller with det(bvec).
+- For 2D we do NOT want to fake things with nz=1. We want a real triangle
+  method with Brillouin-zone area normalization.
+
+What I need from you:
+1. A mathematically clean specification for a 2D regular-grid triangle method
+   that is structurally analogous to the current 3D package but genuinely 2D.
+2. A recommended decomposition of each rectangular 2D cell into triangles,
+   including any preferred orientation rules and periodic-grid indexing notes.
+3. The per-triangle piecewise formulas for k-resolved weights, suitable for
+   distribution to triangle vertices or local interpolation points, for the
+   following routines:
+   - occupation_weights
+   - density_of_states_weights
+   - integrated_density_of_states_weights
+   - phase_space_overlap_weights
+   - nesting_function_weights
+   - static_polarization_weights
+   - fermi_golden_rule_weights
+   - complex_frequency_polarization_weights
+4. For each routine, I need the formulas written in a way that can be turned
+   directly into fixed-size Numba kernels:
+   - assume one triangle with sorted vertex energies
+   - identify all piecewise cases
+   - give explicit scalar prefactors
+   - describe the affine/barycentric coefficient matrices needed to map local
+     triangle contributions back to vertex weights
+5. I need careful handling guidance for numerically delicate cases:
+   - equal or nearly equal triangle-vertex energies
+   - zero or nearly zero energy denominators
+   - grazing cuts at a triangle edge or vertex
+   - delta-function support collapsing to a point or line segment
+   - static-polarization and complex-frequency degeneracies
+6. I need validation guidance:
+   - exact or highly trusted analytic checks for 2D free electrons
+   - known 2D Lindhard / nesting behaviors that should appear in plots
+   - minimal regression cases that would catch sign errors or wrong prefactors
+7. Please separate what is fully standard/known from what is your own
+   recommended interpretation, and call out any places where multiple
+   conventions are possible.
+
+Desired output format:
+- Section 1: recommended overall 2D API/shape conventions
+- Section 2: geometry / interpolation design
+- Section 3: occupation + DOS family formulas
+- Section 4: response-family formulas
+- Section 5: degeneracy handling and numerical-stability rules
+- Section 6: validation plan
+- Section 7: implementation-oriented pseudocode sketches for each kernel
+
+Important:
+- The answer must be self-contained. Do not assume access to the current repo.
+- Optimize for implementation readiness in Python + Numba, not symbolic
+  elegance.
+- If a routine is too risky to specify exactly without a literature cross-check,
+  say so explicitly and give the safest next step.
+```

@@ -8,6 +8,9 @@
 3. Analytic reference checks for occupation, DOS, static response, real-
    frequency response, and Matsubara-axis complex response.
 
+These checks currently cover the 3D tetrahedron path only. Strictly 2D support
+is a separate planned track; see [two_dimensional_plan.md](two_dimensional_plan.md).
+
 Until the first full public release, treat these checks as part of normal use
 for important calculations. If a result matters, compare against the original
 [`libtetrabz`](https://github.com/mitsuaki1987/libtetrabz) implementation or

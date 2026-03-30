@@ -1,4 +1,4 @@
-"""Modern Python port of the legacy libtetrabz tetrahedron routines."""
+"""Modern 3D Python port of the legacy libtetrabz tetrahedron routines."""
 
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version

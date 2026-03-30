@@ -53,6 +53,7 @@ plugins:
 nav:
   - Home: index.md
   - Physics Guide: physics.md
+  - Two-Dimensional Plan: two_dimensional_plan.md
   - Examples: examples.md
   - Quickstart: quickstart.md
   - API Reference: api.md

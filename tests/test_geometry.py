@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from bztetra.geometry import build_integration_mesh
 from bztetra.geometry import cached_integration_mesh
@@ -160,3 +161,18 @@ def test_interpolate_local_values_matches_on_demand_stencil_application() -> Non
             )
 
     np.testing.assert_allclose(interpolated, expected)
+
+
+def test_build_integration_mesh_rejects_two_dimensional_grid_shapes_explicitly() -> None:
+    with pytest.raises(ValueError, match="supports only 3D regular grids"):
+        build_integration_mesh(np.eye(3, dtype=np.float64), (16, 16))
+
+
+def test_build_integration_mesh_rejects_two_dimensional_reciprocal_bases_explicitly() -> None:
+    with pytest.raises(ValueError, match="supports only 3D reciprocal bases"):
+        build_integration_mesh(np.eye(2, dtype=np.float64), (16, 16, 1))
+
+
+def test_build_integration_mesh_rejects_strictly_2d_shapes_with_clear_message() -> None:
+    with pytest.raises(ValueError, match="currently supports only 3D"):
+        build_integration_mesh(np.eye(2, dtype=np.float64), (16, 16))

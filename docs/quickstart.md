@@ -8,6 +8,10 @@ against the original
 [`libtetrabz`](https://github.com/mitsuaki1987/libtetrabz) implementation or
 the parity checks in [validation.md](validation.md).
 
+Current scope is strictly 3D regular k-grids. For genuinely 2D problems, do
+not fake a flat third axis with `nz=1`; that needs a separate triangle-method
+path. See [two_dimensional_plan.md](two_dimensional_plan.md).
+
 ## Four Things To Know
 
 1. `reciprocal_vectors` is a `(3, 3)` array with reciprocal basis vectors in

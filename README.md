@@ -7,6 +7,10 @@ It is aimed at users who already have band energies on a regular mesh and want
 k-resolved weights for occupations, DOS, and Lindhard-style response functions
 without going through the legacy `libtetrabz` wrapper.
 
+Current scope is strictly 3D regular k-grids. For genuinely 2D problems, do
+not fake a flat third axis with `nz=1`; that needs a separate triangle-method
+path. See [docs/two_dimensional_plan.md](docs/two_dimensional_plan.md).
+
 > [!WARNING]
 > `bztetra` is still pre-release. Until the first full public release, users
 > should validate important production results against the original
