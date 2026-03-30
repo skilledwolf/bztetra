@@ -28,7 +28,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/tetrabz", "src/libtetra"]
+packages = ["src/tetrabz"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
