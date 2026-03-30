@@ -26,11 +26,7 @@ def make_eigenvalues(bvec: np.ndarray, grid_shape: tuple[int, int, int]) -> np.n
     for x_index in range(nx):
         for y_index in range(ny):
             for z_index in range(nz):
-                kvec = np.array(
-                    [x_index / nx, y_index / ny, z_index / nz],
-                    dtype=np.float64,
-                )
-                kvec = kvec - np.rint(kvec)
+                kvec = _centered_fractional_kpoint((x_index, y_index, z_index), grid_shape)
                 kvec = bvec @ kvec
                 band_0 = 0.5 * float(np.dot(kvec, kvec))
                 eigenvalues[x_index, y_index, z_index, 0] = band_0
@@ -46,11 +42,7 @@ def make_weight_metric(bvec: np.ndarray, grid_shape: tuple[int, int, int]) -> np
     for x_index in range(nx):
         for y_index in range(ny):
             for z_index in range(nz):
-                kvec = np.array(
-                    [x_index / nx, y_index / ny, z_index / nz],
-                    dtype=np.float64,
-                )
-                kvec = kvec - np.rint(kvec)
+                kvec = _centered_fractional_kpoint((x_index, y_index, z_index), grid_shape)
                 kvec = bvec @ kvec
                 metric[x_index, y_index, z_index] = float(np.dot(kvec, kvec))
 
@@ -128,11 +120,7 @@ def make_response_eigenvalues(bvec: np.ndarray, grid_shape: tuple[int, int, int]
     for x_index in range(nx):
         for y_index in range(ny):
             for z_index in range(nz):
-                kvec = np.array(
-                    [x_index / nx, y_index / ny, z_index / nz],
-                    dtype=np.float64,
-                )
-                kvec = kvec - np.rint(kvec)
+                kvec = _centered_fractional_kpoint((x_index, y_index, z_index), grid_shape)
                 kvec = bvec @ kvec
                 base = 0.5 * float(np.dot(kvec, kvec))
                 shifted = kvec.copy()
@@ -181,6 +169,103 @@ def exact_dbldelta_weighted_integrals() -> FloatArray:
         ],
         dtype=np.float64,
     )
+
+
+def legacy_8x8_polstat_weighted_integrals() -> FloatArray:
+    return np.array(
+        [
+            [3.7810, 1.0451],
+            [5.0059, 1.7602],
+        ],
+        dtype=np.float64,
+    )
+
+
+def legacy_16x16_polstat_weighted_integrals() -> FloatArray:
+    return np.array(
+        [
+            [3.8438, 1.0445],
+            [5.0283, 1.7745],
+        ],
+        dtype=np.float64,
+    )
+
+
+def exact_polstat_weighted_integrals() -> FloatArray:
+    return np.array(
+        [
+            [
+                np.pi * (68.0 + 45.0 * np.log(3.0)) / 96.0,
+                np.pi
+                * (
+                    228.0
+                    + 22.0 * np.sqrt(2.0)
+                    - 96.0 * np.log(2.0)
+                    + 192.0 * np.log(4.0 + np.sqrt(2.0))
+                    - 3.0 * np.log(1.0 + 2.0 * np.sqrt(2.0))
+                )
+                / 1536.0,
+            ],
+            [
+                np.pi * 8.0 / 5.0,
+                np.pi * np.sqrt(8.0) / 5.0,
+            ],
+        ],
+        dtype=np.float64,
+    )
+
+
+def lindhard_q_points(count: int = 31, qmax: float = 4.0) -> FloatArray:
+    return np.linspace(0.0, qmax, count, dtype=np.float64)
+
+
+def exact_lindhard_curve(q_values: np.ndarray) -> FloatArray:
+    q = np.asarray(q_values, dtype=np.float64)
+    values = np.empty_like(q)
+    q_zero = np.isclose(q, 0.0)
+    q_kohn = np.isclose(q, 2.0)
+    regular = ~(q_zero | q_kohn)
+
+    values[q_zero] = 1.0
+    values[q_kohn] = 0.5
+
+    x = q[regular]
+    values[regular] = 0.5 + 0.5 / x * (1.0 - 0.25 * x * x) * np.log(np.abs((x + 2.0) / (x - 2.0)))
+    return values
+
+
+def lindhard_free_electron_case(
+    grid_shape: tuple[int, int, int],
+    q_value: float,
+    *,
+    fermi_energy: float = 0.5,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    bvec = np.diag([3.0, 3.0, 3.0]).astype(np.float64)
+    eig1 = np.empty((*grid_shape, 1), dtype=np.float64)
+    eig2 = np.empty((*grid_shape, 1), dtype=np.float64)
+    qvec = np.array([q_value, 0.0, 0.0], dtype=np.float64)
+
+    nx, ny, nz = grid_shape
+    for x_index in range(nx):
+        for y_index in range(ny):
+            for z_index in range(nz):
+                kvec = bvec @ _centered_fractional_kpoint((x_index, y_index, z_index), grid_shape)
+                eig1[x_index, y_index, z_index, 0] = 0.5 * float(np.dot(kvec, kvec)) - fermi_energy
+                shifted = kvec + qvec
+                eig2[x_index, y_index, z_index, 0] = 0.5 * float(np.dot(shifted, shifted)) - fermi_energy
+
+    return bvec, eig1, eig2
+
+
+def _centered_fractional_kpoint(
+    indices: tuple[int, int, int],
+    grid_shape: tuple[int, int, int],
+) -> FloatArray:
+    grid = np.asarray(grid_shape, dtype=np.int64)
+    half_grid = grid // 2
+    integer_indices = np.asarray(indices, dtype=np.int64)
+    centered = np.mod(integer_indices + half_grid, grid) - half_grid
+    return centered.astype(np.float64) / grid.astype(np.float64)
 
 
 def tight_binding_dos_energy_points() -> FloatArray:

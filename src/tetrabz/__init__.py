@@ -9,6 +9,8 @@ from .response import dblstep
 from .response import dbldelta
 from .response import double_delta_weights
 from .response import double_step_weights
+from .response import polstat
+from .response import static_polarization_weights
 from .formulas import SimplexCut
 from .geometry import IntegrationMesh
 from .geometry import build_integration_mesh
@@ -39,9 +41,11 @@ __all__ = [
     "intdos",
     "occ",
     "occupation_weights",
+    "polstat",
     "simplex_affine_coefficients",
     "solve_fermi_energy",
     "small_tetrahedron_cut",
+    "static_polarization_weights",
     "tetrahedron_offsets",
     "tetrahedron_weight_matrix",
     "triangle_cut",
