@@ -15,3 +15,10 @@ The implementation strategy is:
   locked down.
 - SciPy only where it materially helps validation, reference calculations, or
   tooling; it is not a planned dependency for the core runtime path right now.
+
+For a quick human-review snapshot of the current geometry/indexing layer and the
+shared cut-formula helpers, run:
+
+```bash
+.venv/bin/python examples/review_geometry_and_cuts.py
+```
