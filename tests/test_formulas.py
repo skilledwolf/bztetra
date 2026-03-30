@@ -103,9 +103,14 @@ def test_triangle_rows_are_barycentric(kind: str, energies: np.ndarray) -> None:
     assert cut.volume_factor > 0.0
 
 
-def test_cut_helpers_require_strictly_sorted_distinct_energies() -> None:
-    with pytest.raises(ValueError, match="strictly increasing"):
-        small_tetrahedron_cut("a1", np.array([-2.0, -2.0, 1.0, 3.0]))
+def test_cut_helpers_regularize_exact_ties_but_reject_unsorted_inputs() -> None:
+    small_cut = small_tetrahedron_cut("a1", np.array([-2.0, -2.0, 1.0, 3.0]))
+    triangle = triangle_cut("a1", np.array([-2.0, -2.0, 1.0, 3.0]))
 
-    with pytest.raises(ValueError, match="strictly increasing"):
+    assert np.isfinite(small_cut.volume_factor)
+    assert np.all(np.isfinite(small_cut.coefficients))
+    assert np.isfinite(triangle.volume_factor)
+    assert np.all(np.isfinite(triangle.coefficients))
+
+    with pytest.raises(ValueError, match="nondecreasing"):
         triangle_cut("a1", np.array([1.0, -1.0, 2.0, 3.0]))

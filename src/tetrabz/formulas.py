@@ -26,7 +26,7 @@ class SimplexCut:
 
 
 def simplex_affine_coefficients(energies: npt.ArrayLike) -> FloatArray:
-    """Return the legacy ``a(i, j)`` table for four strictly ordered energies."""
+    """Return the legacy ``a(i, j)`` table for four sorted energies."""
 
     values = _normalize_sorted_energies(energies)
     coefficients = np.full((4, 4), np.nan, dtype=np.float64)
@@ -129,6 +129,16 @@ def _normalize_sorted_energies(energies: npt.ArrayLike) -> FloatArray:
         raise ValueError(f"expected four sorted energies, got shape {values.shape!r}")
     if not np.all(np.isfinite(values)):
         raise ValueError("energies must be finite")
-    if not np.all(np.diff(values) > 0.0):
-        raise ValueError("energies must be strictly increasing for the cut formulas")
-    return values
+
+    adjusted = values.copy()
+    if np.any(np.diff(adjusted) < 0.0):
+        raise ValueError("energies must be sorted in nondecreasing order for the cut formulas")
+
+    # The legacy Fortran helpers implicitly rely on floating-point tie breaking.
+    # Linear-method example meshes can hit exact equalities, so nudge later
+    # vertices by one ULP to keep the affine construction well-defined.
+    for index in range(1, adjusted.size):
+        if adjusted[index] <= adjusted[index - 1]:
+            adjusted[index] = np.nextafter(adjusted[index - 1], np.inf)
+
+    return adjusted

@@ -25,6 +25,9 @@ pip install -e '.[dev]'
 pytest -q
 ```
 
+For plot-only installs without the rest of the dev tooling, use
+`pip install -e '.[plot]'`.
+
 For a quick human-review snapshot of the current geometry/indexing layer, the
 shared cut-formula helpers, and one occupation-weight result, run:
 
@@ -39,8 +42,15 @@ system, run:
 .venv/bin/python examples/review_occupancy.py
 ```
 
-For a DOS / integrated-DOS review that compares the current 8x8 free-electron
-fixture against the analytic continuum target, run:
+For a physically meaningful DOS review plot, reproduce the legacy cubic
+tight-binding example and write a figure under `build/review_plots/`:
+
+```bash
+.venv/bin/python examples/plot_tight_binding_dos.py
+```
+
+For a numeric DOS / integrated-DOS review that compares the current 8x8
+free-electron fixture against the analytic continuum target, run:
 
 ```bash
 .venv/bin/python examples/review_dos.py

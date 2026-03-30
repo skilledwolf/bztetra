@@ -4,12 +4,15 @@ from tetrabz import dos
 from tetrabz import intdos
 from tetrabz import occ
 from tests.legacy_cases import brillouin_zone_volume
+from tests.legacy_cases import cubic_tight_binding_band
 from tests.legacy_cases import exact_free_electron_dos_weighted_integrals
 from tests.legacy_cases import exact_free_electron_intdos_weighted_integrals
 from tests.legacy_cases import legacy_8x8_dos_weighted_integrals
 from tests.legacy_cases import legacy_8x8_intdos_weighted_integrals
 from tests.legacy_cases import legacy_dos_energy_points
 from tests.legacy_cases import legacy_free_electron_case
+from tests.legacy_cases import load_legacy_example_dataset
+from tests.legacy_cases import tight_binding_dos_energy_points
 
 
 def test_intdos_matches_occ_at_same_energy_cutoff() -> None:
@@ -69,6 +72,58 @@ def test_intdos_tracks_exact_free_electron_integrals_on_24_grid() -> None:
         rtol=2.0e-2,
         atol=1.0e-6,
     )
+
+
+def test_linear_tight_binding_dos_matches_legacy_example_curve() -> None:
+    reciprocal_vectors, eigenvalues = cubic_tight_binding_band((8, 8, 8))
+    sample_energies = tight_binding_dos_energy_points()
+
+    weights = dos(
+        reciprocal_vectors,
+        eigenvalues,
+        sample_energies,
+        weight_grid_shape=(8, 8, 8),
+        method="linear",
+    )
+    current_curve = weights.sum(axis=(1, 2, 3, 4))
+    legacy_curve = load_legacy_example_dataset("dos1_8.dat")[:, 1]
+
+    np.testing.assert_allclose(current_curve, legacy_curve, rtol=3.0e-4, atol=1.0e-7)
+
+
+def test_optimized_tight_binding_dos_matches_legacy_example_curve() -> None:
+    reciprocal_vectors, eigenvalues = cubic_tight_binding_band((8, 8, 8))
+    sample_energies = tight_binding_dos_energy_points()
+
+    weights = dos(
+        reciprocal_vectors,
+        eigenvalues,
+        sample_energies,
+        weight_grid_shape=(8, 8, 8),
+        method="optimized",
+    )
+    current_curve = weights.sum(axis=(1, 2, 3, 4))
+    legacy_curve = load_legacy_example_dataset("dos2_8.dat")[:, 1]
+
+    np.testing.assert_allclose(current_curve, legacy_curve, rtol=5.0e-4, atol=1.0e-7)
+
+
+def test_tight_binding_intdos_is_monotone_and_normalized() -> None:
+    reciprocal_vectors, eigenvalues = cubic_tight_binding_band((8, 8, 8))
+    sample_energies = tight_binding_dos_energy_points()
+
+    weights = intdos(
+        reciprocal_vectors,
+        eigenvalues,
+        sample_energies,
+        weight_grid_shape=(8, 8, 8),
+        method="optimized",
+    )
+    integrated_curve = weights.sum(axis=(1, 2, 3, 4))
+
+    assert np.all(np.diff(integrated_curve) >= -1.0e-10)
+    assert integrated_curve[0] >= -1.0e-10
+    assert abs(integrated_curve[-1] - 1.0) < 3.0e-4
 
 
 def _weighted_integrals(weights: np.ndarray, metric: np.ndarray, reciprocal_vectors: np.ndarray) -> np.ndarray:

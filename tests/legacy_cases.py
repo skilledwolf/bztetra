@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 
 
 FloatArray = np.ndarray
+LEGACY_EXAMPLE_DIR = Path(__file__).resolve().parents[1] / "libtetra_original" / "example"
 
 
 def legacy_free_electron_case(
@@ -107,3 +110,27 @@ def exact_free_electron_intdos_weighted_integrals(energies: np.ndarray) -> Float
     active = radii > 1.0 / np.sqrt(2.0)
     expected[active, 1] = np.pi * np.power(2.0 * radii[active] ** 2 - 1.0, 2.5) / (5.0 * np.sqrt(2.0))
     return expected
+
+
+def tight_binding_dos_energy_points() -> FloatArray:
+    return np.linspace(-3.0, 3.0, 100, dtype=np.float64)
+
+
+def cubic_tight_binding_band(grid_shape: tuple[int, int, int]) -> tuple[np.ndarray, np.ndarray]:
+    nx, ny, nz = grid_shape
+    reciprocal_vectors = np.eye(3, dtype=np.float64)
+    eigenvalues = np.empty((nx, ny, nz, 1), dtype=np.float64)
+
+    for x_index in range(nx):
+        for y_index in range(ny):
+            for z_index in range(nz):
+                kvec = 2.0 * np.pi * (
+                    np.array((x_index, y_index, z_index), dtype=np.float64) - 0.5 * np.array(grid_shape, dtype=np.float64)
+                ) / np.array(grid_shape, dtype=np.float64)
+                eigenvalues[x_index, y_index, z_index, 0] = -np.cos(kvec).sum()
+
+    return reciprocal_vectors, eigenvalues
+
+
+def load_legacy_example_dataset(filename: str) -> FloatArray:
+    return np.loadtxt(LEGACY_EXAMPLE_DIR / filename, dtype=np.float64)
