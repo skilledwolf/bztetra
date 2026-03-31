@@ -4,6 +4,7 @@ site_url: https://skilledwolf.github.io/bztetra/
 repo_url: https://github.com/skilledwolf/bztetra
 repo_name: skilledwolf/bztetra
 site_dir: site
+edit_uri: edit/main/docs/
 
 theme:
   name: material

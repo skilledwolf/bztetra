@@ -6,6 +6,7 @@ __pycache__/
 *.py[cod]
 *.so
 .python-version
+.pkg-venv/
 .venv/
 venv/
 
@@ -14,7 +15,6 @@ build/
 dist/
 *.egg-info/
 site/
-.internal/
 
 # Tool caches
 .coverage
