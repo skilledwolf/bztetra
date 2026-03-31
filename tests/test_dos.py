@@ -25,6 +25,44 @@ def test_integrated_density_of_states_weights_matches_occ_at_same_energy_cutoff(
     np.testing.assert_allclose(integrated, occupation, rtol=1.0e-12, atol=1.0e-12)
 
 
+def test_dos_paths_preserve_unsorted_energy_order() -> None:
+    bvec, eigenvalues, _ = legacy_free_electron_case((6, 6, 6), (6, 6, 6))
+    sample_energies = legacy_dos_energy_points()
+    order = np.array([3, 0, 4, 1, 2], dtype=np.int64)
+
+    ordered_dos = density_of_states_weights(
+        bvec,
+        eigenvalues,
+        sample_energies,
+        weight_grid_shape=(6, 6, 6),
+        method="optimized",
+    )
+    shuffled_dos = density_of_states_weights(
+        bvec,
+        eigenvalues,
+        sample_energies[order],
+        weight_grid_shape=(6, 6, 6),
+        method="optimized",
+    )
+    np.testing.assert_allclose(shuffled_dos, ordered_dos[order], rtol=1.0e-12, atol=1.0e-12)
+
+    ordered_intdos = integrated_density_of_states_weights(
+        bvec,
+        eigenvalues,
+        sample_energies,
+        weight_grid_shape=(6, 6, 6),
+        method="optimized",
+    )
+    shuffled_intdos = integrated_density_of_states_weights(
+        bvec,
+        eigenvalues,
+        sample_energies[order],
+        weight_grid_shape=(6, 6, 6),
+        method="optimized",
+    )
+    np.testing.assert_allclose(shuffled_intdos, ordered_intdos[order], rtol=1.0e-12, atol=1.0e-12)
+
+
 def test_density_of_states_weights_matches_legacy_8x8_reference_integrals() -> None:
     bvec, eigenvalues, weight_metric = legacy_free_electron_case((8, 8, 8), (8, 8, 8))
     sample_energies = legacy_dos_energy_points()
