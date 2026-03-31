@@ -1,5 +1,8 @@
 site_name: bztetra
 site_description: Python and Numba tetrahedron integration on regular k-grids
+site_url: https://skilledwolf.github.io/bztetra/
+repo_url: https://github.com/skilledwolf/bztetra
+repo_name: skilledwolf/bztetra
 site_dir: site
 
 theme:

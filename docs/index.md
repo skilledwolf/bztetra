@@ -7,12 +7,13 @@ The top-level API is 3D-only, while the parallel 2D linear triangle-method
 surface now lives under `bztetra.twod`; see
 [2D Triangle Method](two_dimensional_plan.md).
 
-!!! warning "Pre-release status"
+!!! warning "Public preview status"
 
-    `bztetra` is still pre-release. Until the first full public release,
-    validate important production calculations against the original
+    `bztetra` is in its public `0.x` preview series. Validate important
+    production calculations against the original
     [`libtetrabz`](https://github.com/mitsuaki1987/libtetrabz) implementation
-    or the parity checks documented in [Validation](validation.md).
+    or the parity checks documented in [Validation](validation.md) while the
+    API and validation envelope continue to mature.
 
 <div class="grid cards" markdown>
 

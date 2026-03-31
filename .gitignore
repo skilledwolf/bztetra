@@ -1,4 +1,5 @@
 libtetra_original/
+.internal/
 
 # Python
 __pycache__/
@@ -13,6 +14,7 @@ build/
 dist/
 *.egg-info/
 site/
+.internal/
 
 # Tool caches
 .coverage

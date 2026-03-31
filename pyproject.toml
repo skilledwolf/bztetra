@@ -6,16 +6,40 @@ build-backend = "hatchling.build"
 name = "bztetra"
 dynamic = ["version"]
 description = "Python and Numba port of libtetrabz-style tetrahedron integration routines."
-readme = "README.md"
+readme = {file = "README.pypi.md", content-type = "text/markdown"}
 requires-python = ">=3.11"
 license = {text = "MIT"}
+license-files = ["LICENSE"]
 authors = [
   {name = "bztetra contributors"},
+]
+keywords = [
+  "brillouin-zone",
+  "density-of-states",
+  "electronic-structure",
+  "numba",
+  "tetrahedron-method",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Physics",
 ]
 dependencies = [
   "numba>=0.61",
   "numpy>=2.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/skilledwolf/bztetra"
+Documentation = "https://skilledwolf.github.io/bztetra/"
+Repository = "https://github.com/skilledwolf/bztetra"
+Issues = "https://github.com/skilledwolf/bztetra/issues"
 
 [project.optional-dependencies]
 plot = [
@@ -34,6 +58,15 @@ dev = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/bztetra"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "/LICENSE",
+  "/README.md",
+  "/README.pypi.md",
+  "/pyproject.toml",
+  "/src",
+]
 
 [tool.hatch.version]
 source = "vcs"

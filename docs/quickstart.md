@@ -3,8 +3,8 @@
 This is the shortest path from "I have band energies on a regular k-grid" to a
 correct `bztetra` call.
 
-Until the first full public release, validate important production calculations
-against the original
+For the current `0.x` public preview, validate important production
+calculations against the original
 [`libtetrabz`](https://github.com/mitsuaki1987/libtetrabz) implementation or
 the parity checks in [validation.md](validation.md).
 

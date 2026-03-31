@@ -13,9 +13,10 @@ occupation, DOS, and response families. Do not fake a flat third axis with
 `nz=1`; see
 [docs/two_dimensional_plan.md](docs/two_dimensional_plan.md).
 
-> [!WARNING]
-> `bztetra` is still pre-release. Until the first full public release, users
-> should validate important production results against the original
+> [!IMPORTANT]
+> `bztetra` is a public preview in the `0.x` series. The package is usable, but
+> the API and validation envelope may still evolve before `1.0`. Validate
+> important production results against the original
 > [`libtetrabz`](https://github.com/mitsuaki1987/libtetrabz) implementation or
 > run the parity checks described in [docs/validation.md](docs/validation.md).
 
@@ -31,6 +32,8 @@ Requires Python 3.11+.
 ```bash
 pip install bztetra
 ```
+
+Project docs live at [skilledwolf.github.io/bztetra](https://skilledwolf.github.io/bztetra/).
 
 Plotting examples use Matplotlib:
 

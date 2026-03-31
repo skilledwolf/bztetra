@@ -13,8 +13,8 @@ triangle-method implementation under `bztetra.twod`. The 2D response family is
 now included in exact single-triangle regression checks and public-API smoke
 coverage; see [two_dimensional_plan.md](two_dimensional_plan.md).
 
-Until the first full public release, treat these checks as part of normal use
-for important calculations. If a result matters, compare against the original
+During the `0.x` public preview series, treat these checks as part of normal
+use for important calculations. If a result matters, compare against the original
 [`libtetrabz`](https://github.com/mitsuaki1987/libtetrabz) implementation or
 run the parity suite below.
 
