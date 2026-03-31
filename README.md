@@ -19,6 +19,8 @@ occupation, DOS, and response families. Do not fake a flat third axis with
 `nz=1`; see
 [docs/two_dimensional_plan.md](docs/two_dimensional_plan.md).
 
+Author: Tobias Wolf ([@skilledwolf](https://github.com/skilledwolf))
+
 > [!IMPORTANT]
 > `bztetra` is a public preview in the `0.x` series. The package is usable, but
 > the API and validation envelope may still evolve before `1.0`. Validate
