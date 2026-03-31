@@ -1,5 +1,11 @@
 # bztetra
 
+[![PyPI version](https://img.shields.io/pypi/v/bztetra)](https://pypi.org/project/bztetra/)
+[![Python versions](https://img.shields.io/pypi/pyversions/bztetra)](https://pypi.org/project/bztetra/)
+[![CI](https://github.com/skilledwolf/bztetra/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/skilledwolf/bztetra/actions/workflows/ci.yml)
+[![Docs](https://github.com/skilledwolf/bztetra/actions/workflows/docs.yml/badge.svg?branch=main)](https://skilledwolf.github.io/bztetra/)
+[![License](https://img.shields.io/github/license/skilledwolf/bztetra)](https://github.com/skilledwolf/bztetra/blob/main/LICENSE)
+
 `bztetra` is a Python + Numba package for single-process tetrahedron
 integration on regular k-grids.
 
