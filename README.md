@@ -11,7 +11,7 @@ integration on regular k-grids.
 
 It is aimed at users who already have band energies on a regular mesh and want
 k-resolved weights for occupations, DOS, and Lindhard-style response functions
-without going through the legacy `libtetrabz` wrapper.
+without going through the `libtetrabz` Python wrapper.
 
 The top-level `bztetra` API remains strictly 3D. A parallel 2D linear
 triangle-method implementation now lives under `bztetra.twod` for the
@@ -22,13 +22,13 @@ occupation, DOS, and response families. Do not fake a flat third axis with
 > [!IMPORTANT]
 > `bztetra` is a public preview in the `0.x` series. The package is usable, but
 > the API and validation envelope may still evolve before `1.0`. Validate
-> important production results against the original
+> important production results against the upstream
 > [`libtetrabz`](https://github.com/mitsuaki1987/libtetrabz) implementation or
 > run the parity checks described in [docs/validation.md](docs/validation.md).
 
 - NumPy arrays in, NumPy arrays out.
-- Optimized and legacy-linear tetrahedron schemes.
-- Validation against legacy shell outputs, the legacy Python wrapper, and
+- Optimized and linear tetrahedron schemes.
+- Validation against tracked reference fixtures, the `libtetrabz` Python wrapper, and
   analytic free-electron reference cases.
 
 ## Install
@@ -136,23 +136,23 @@ the current 2D surface, then run one of the plot-backed example scripts:
 
 ## Validation
 
-`bztetra` is checked against tracked legacy shell/example fixtures, optional
-direct parity with the legacy `libtetrabz` Python wrapper, and analytic
+`bztetra` is checked against tracked shell/example reference fixtures, optional
+direct parity with the `libtetrabz` Python wrapper, and analytic
 reference cases. See
 [docs/validation.md](docs/validation.md) for the exact coverage and
 reproduction commands.
 
 ## Acknowledgement
 
-`bztetra` is a clean-room Python + Numba port informed by the original
+`bztetra` is a clean-room Python + Numba port informed by the upstream
 [`libtetrabz`](https://github.com/mitsuaki1987/libtetrabz) project by Mitsuaki
 Kawamura and collaborators. If `bztetra` is useful in research, users should
-also acknowledge the original method and implementation:
+also acknowledge the underlying method and the upstream implementation:
 
 - M. Kawamura, Y. Gohda, and S. Tsuneyuki, "Improved tetrahedron method for the
   Brillouin-zone integration applicable to response functions,"
   [Phys. Rev. B 89, 094515 (2014)](https://journals.aps.org/prb/abstract/10.1103/PhysRevB.89.094515)
-- Original repository:
+- Upstream repository:
   [github.com/mitsuaki1987/libtetrabz](https://github.com/mitsuaki1987/libtetrabz)
 
 ## Development

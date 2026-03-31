@@ -2,8 +2,8 @@
 
 `bztetra` is release-checked against three reference layers:
 
-1. Legacy shell-matrix parity for the `8^3`, `16^3 -> 8^3`, and `16^3` cases.
-2. Optional direct parity against the installed legacy `libtetrabz` Python
+1. Reference shell-matrix parity for the `8^3`, `16^3 -> 8^3`, and `16^3` cases.
+2. Optional direct parity against the installed `libtetrabz` Python
    wrapper on same-grid tensor outputs.
 3. Analytic reference checks for occupation, DOS, static response, real-
    frequency response, and Matsubara-axis complex response.
@@ -14,7 +14,7 @@ now included in exact single-triangle regression checks and public-API smoke
 coverage; see [two_dimensional_plan.md](two_dimensional_plan.md).
 
 During the `0.x` public preview series, treat these checks as part of normal
-use for important calculations. If a result matters, compare against the original
+use for important calculations. If a result matters, compare against the upstream
 [`libtetrabz`](https://github.com/mitsuaki1987/libtetrabz) implementation or
 run the parity suite below.
 
@@ -30,7 +30,7 @@ python -m pytest -q
 ```
 
 The default test suite already includes the tracked shell/example fixtures. To
-include direct parity against the legacy Python wrapper as well:
+include direct parity against the `libtetrabz` Python wrapper as well:
 
 ```bash
 pip install libtetrabz
@@ -39,10 +39,10 @@ python -m pytest -q tests/test_legacy_shell_matrix.py tests/test_legacy_wrapper_
 
 ## What Each Layer Covers
 
-### Legacy Shell Matrix
+### Reference Shell Matrix
 
 `tests/test_legacy_shell_matrix.py` checks the automated equivalents of the
-legacy shell cases:
+tracked shell reference cases:
 
 - `8^3`
 - `16^3 -> 8^3`
@@ -54,7 +54,7 @@ response workflows.
 ### Direct Wrapper Parity
 
 `tests/test_legacy_wrapper_parity.py` compares `bztetra` against the installed
-legacy `libtetrabz` Python wrapper on same-grid outputs for the public
+`libtetrabz` Python wrapper on same-grid outputs for the public
 computational surface.
 
 ### Analytic Checks
@@ -81,16 +81,16 @@ The 2D analytic and structural checks live in:
 - `tests/test_twod_response.py`
 - `tests/test_twod_frequency_response.py`
 
-## Original Project
+## Upstream Project
 
-`bztetra` is a clean-room port informed by the original `libtetrabz` project by
-Mitsuaki Kawamura and collaborators. For original source, manuals, and the
-legacy Python wrapper, see:
+`bztetra` is a clean-room port informed by the upstream `libtetrabz` project by
+Mitsuaki Kawamura and collaborators. For source, manuals, and the Python
+wrapper, see:
 
 - [github.com/mitsuaki1987/libtetrabz](https://github.com/mitsuaki1987/libtetrabz)
 - [mitsuaki1987.github.io/libtetrabz/python/_build/html/index.html](https://mitsuaki1987.github.io/libtetrabz/python/_build/html/index.html)
 
-If you use `bztetra` in research, also cite the original method paper:
+If you use `bztetra` in research, also cite the method paper:
 
 - M. Kawamura, Y. Gohda, and S. Tsuneyuki, "Improved tetrahedron method for the
   Brillouin-zone integration applicable to response functions,"

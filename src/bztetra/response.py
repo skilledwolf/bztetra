@@ -109,7 +109,7 @@ def prepare_response_evaluator(
     `occupied_eigenvalues` and `target_eigenvalues` must both have shape
     `(nx, ny, nz, nbands)`. The prepared evaluator reuses mesh and tetrahedron
     setup across static, real-frequency, and complex-frequency response calls.
-    Set `method="linear"` only when reproducing the legacy linear tetrahedron
+    Set `method="linear"` only when reproducing the reference linear tetrahedron
     scheme.
     """
 

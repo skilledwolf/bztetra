@@ -2,7 +2,7 @@
 
 `bztetra` is a Python + Numba package for tetrahedron integration on regular
 k-grids, aimed at electronic-structure users who want physically meaningful
-Brillouin-zone weights without going through the legacy `libtetrabz` wrapper.
+Brillouin-zone weights without going through the `libtetrabz` Python wrapper.
 The top-level API is 3D-only, while the parallel 2D linear triangle-method
 surface now lives under `bztetra.twod`; see
 [2D Triangle Method](two_dimensional_plan.md).
@@ -10,7 +10,7 @@ surface now lives under `bztetra.twod`; see
 !!! warning "Public preview status"
 
     `bztetra` is in its public `0.x` preview series. Validate important
-    production calculations against the original
+    production calculations against the upstream
     [`libtetrabz`](https://github.com/mitsuaki1987/libtetrabz) implementation
     or the parity checks documented in [Validation](validation.md) while the
     API and validation envelope continue to mature.
@@ -53,7 +53,7 @@ surface now lives under `bztetra.twod`; see
 
     ---
 
-    Legacy shell parity, wrapper parity, analytic checks, and exact commands.
+    Reference shell parity, wrapper parity, analytic checks, and exact commands.
 
     [See validation](validation.md)
 
@@ -89,10 +89,10 @@ If you want the docs in physicist order rather than package order:
 5. Read [2D Triangle Method](two_dimensional_plan.md) before attempting any
    genuinely 2D use case.
 
-## Original Project
+## Upstream Project
 
-`bztetra` is a clean-room Python port informed by the original
+`bztetra` is a clean-room Python port informed by the upstream
 [`libtetrabz`](https://github.com/mitsuaki1987/libtetrabz) project by Mitsuaki
 Kawamura and collaborators. If you use `bztetra` in research, also acknowledge
-the original implementation and cite the method paper linked from
-[Validation](validation.md#original-project).
+the upstream implementation and cite the method paper linked from
+[Validation](validation.md#upstream-project).

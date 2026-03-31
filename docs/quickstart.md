@@ -23,7 +23,7 @@ third axis with `nz=1`; see [2D Triangle Method](two_dimensional_plan.md).
    multiplying by `np.linalg.det(bvec)` for a right-handed basis.
 
 `method="optimized"` is the default and the right choice unless you are
-reproducing legacy linear-tetrahedron results.
+reproducing reference linear-tetrahedron results.
 
 If you want the physics before the call signatures, read
 [Physics Guide](physics.md) first.

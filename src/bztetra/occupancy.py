@@ -123,7 +123,7 @@ def solve_fermi_energy(
     `FermiEnergySolution.weights` array follows the same layout as
     `occupation_weights`. `electrons_per_spin` is the target sum of the
     returned occupation weights over the full k-grid and band axes. Set
-    `method="linear"` only when reproducing the legacy linear tetrahedron
+    `method="linear"` only when reproducing the reference linear tetrahedron
     scheme. Replaces `libtetrabz_fermieng`.
     """
 

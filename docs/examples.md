@@ -43,7 +43,7 @@ dos_curve = weights.sum(axis=(1, 2, 3, 4))
 <figure markdown>
   ![Cubic tight-binding DOS comparison](assets/plots/tight_binding_dos.png)
   <figcaption>
-    The coarse 8^3 tetrahedron result tracks the legacy DOS line shape and the
+    The coarse 8^3 tetrahedron result tracks the reference DOS line shape and the
     integrated DOS shows the expected half-filling crossing near E = 0.
   </figcaption>
 </figure>
@@ -119,7 +119,7 @@ python examples/plot_phase_space_and_nesting.py
 <figure markdown>
   ![Phase-space overlap and nesting](assets/plots/phase_space_and_nesting.png)
   <figcaption>
-    The overlap weight follows the legacy `dblstep` geometry, while the nesting
+    The overlap weight follows the reference `dblstep` geometry, while the nesting
     weight isolates the Fermi-surface intersection geometry.
   </figcaption>
 </figure>

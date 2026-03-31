@@ -69,7 +69,7 @@ For two band manifolds, `bztetra` exposes three useful static objects.
 
 ### Phase-Space Overlap
 
-`phase_space_overlap_weights` follows the legacy `dblstep` semantics: occupied
+`phase_space_overlap_weights` follows the reference `dblstep` semantics: occupied
 phase space filtered by a second Heaviside on the source-minus-target energy
 difference
 
