@@ -352,18 +352,18 @@ def _fermi_golden_rule_weights_on_local_mesh_pair_parallel_numba(
 
         sorted_order = np.empty(4, dtype=np.int64)
         sorted_occupied = np.empty(4, dtype=np.float64)
-        sorted_target = np.empty((4, 1), dtype=np.float64)
-        full_target = np.empty((4, 1), dtype=np.float64)
-        outer_weights = np.empty((energy_count, 1, 4), dtype=np.float64)
+        sorted_target = np.empty(4, dtype=np.float64)
+        full_target = np.empty(4, dtype=np.float64)
+        outer_weights = np.empty((energy_count, 4), dtype=np.float64)
         point_weights = np.empty(20, dtype=np.float64)
 
         outer_strict = np.empty(4, dtype=np.float64)
         outer_affine = np.empty((4, 4), dtype=np.float64)
         outer_coefficients = np.empty((4, 4), dtype=np.float64)
         transformed_occupied = np.empty(4, dtype=np.float64)
-        transformed_target = np.empty((4, 1), dtype=np.float64)
+        transformed_target = np.empty(4, dtype=np.float64)
 
-        secondary_weights = np.empty((energy_count, 1, 4), dtype=np.float64)
+        secondary_weights = np.empty((energy_count, 4), dtype=np.float64)
         step_energies = np.empty(4, dtype=np.float64)
         secondary_sorted_order = np.empty(4, dtype=np.int64)
         secondary_sorted_step_energies = np.empty(4, dtype=np.float64)
@@ -381,10 +381,6 @@ def _fermi_golden_rule_weights_on_local_mesh_pair_parallel_numba(
         triangle_strict = np.empty(4, dtype=np.float64)
         triangle_affine = np.empty((4, 4), dtype=np.float64)
         triangle_coefficients = np.empty((3, 4), dtype=np.float64)
-        secondary_active_starts = np.empty(1, dtype=np.int64)
-        secondary_active_ends = np.empty(1, dtype=np.int64)
-        outer_active_starts = np.empty(1, dtype=np.int64)
-        outer_active_ends = np.empty(1, dtype=np.int64)
 
         for tetrahedron_index in range(tetrahedron_count):
             sort4(
@@ -394,22 +390,22 @@ def _fermi_golden_rule_weights_on_local_mesh_pair_parallel_numba(
             )
             for vertex_index in range(4):
                 source_vertex = sorted_order[vertex_index]
-                sorted_target[vertex_index, 0] = target_tetra[
+                sorted_target[vertex_index] = target_tetra[
                     tetrahedron_index,
                     source_vertex,
                     target_band_index,
                 ]
-                full_target[vertex_index, 0] = target_tetra[
+                full_target[vertex_index] = target_tetra[
                     tetrahedron_index,
                     vertex_index,
                     target_band_index,
                 ]
 
-            outer_weights[:, :, :] = 0.0
-            outer_active_starts[0] = energy_count
-            outer_active_ends[0] = 0
+            outer_weights[:, :] = 0.0
+            outer_active_start = energy_count
+            outer_active_end = 0
             if sorted_occupied[0] <= 0.0 < sorted_occupied[1]:
-                _accumulate_small_tetra_fermigr_outer_numba(
+                start, end = _accumulate_small_tetra_fermigr_outer_pair_numba(
                     outer_weights,
                     0,
                     sorted_order,
@@ -417,7 +413,6 @@ def _fermi_golden_rule_weights_on_local_mesh_pair_parallel_numba(
                     sorted_target,
                     sample_energies,
                     sample_energies_sorted,
-                    1,
                     outer_strict,
                     outer_affine,
                     outer_coefficients,
@@ -441,14 +436,14 @@ def _fermi_golden_rule_weights_on_local_mesh_pair_parallel_numba(
                     triangle_strict,
                     triangle_affine,
                     triangle_coefficients,
-                    secondary_active_starts,
-                    secondary_active_ends,
-                    outer_active_starts,
-                    outer_active_ends,
                 )
+                if start < outer_active_start:
+                    outer_active_start = start
+                if end > outer_active_end:
+                    outer_active_end = end
             elif sorted_occupied[1] <= 0.0 < sorted_occupied[2]:
                 for case_id in (1, 2, 3):
-                    _accumulate_small_tetra_fermigr_outer_numba(
+                    start, end = _accumulate_small_tetra_fermigr_outer_pair_numba(
                         outer_weights,
                         case_id,
                         sorted_order,
@@ -456,7 +451,6 @@ def _fermi_golden_rule_weights_on_local_mesh_pair_parallel_numba(
                         sorted_target,
                         sample_energies,
                         sample_energies_sorted,
-                        1,
                         outer_strict,
                         outer_affine,
                         outer_coefficients,
@@ -480,14 +474,14 @@ def _fermi_golden_rule_weights_on_local_mesh_pair_parallel_numba(
                         triangle_strict,
                         triangle_affine,
                         triangle_coefficients,
-                        secondary_active_starts,
-                        secondary_active_ends,
-                        outer_active_starts,
-                        outer_active_ends,
                     )
+                    if start < outer_active_start:
+                        outer_active_start = start
+                    if end > outer_active_end:
+                        outer_active_end = end
             elif sorted_occupied[2] <= 0.0 < sorted_occupied[3]:
                 for case_id in (4, 5, 6):
-                    _accumulate_small_tetra_fermigr_outer_numba(
+                    start, end = _accumulate_small_tetra_fermigr_outer_pair_numba(
                         outer_weights,
                         case_id,
                         sorted_order,
@@ -495,7 +489,6 @@ def _fermi_golden_rule_weights_on_local_mesh_pair_parallel_numba(
                         sorted_target,
                         sample_energies,
                         sample_energies_sorted,
-                        1,
                         outer_strict,
                         outer_affine,
                         outer_coefficients,
@@ -519,13 +512,13 @@ def _fermi_golden_rule_weights_on_local_mesh_pair_parallel_numba(
                         triangle_strict,
                         triangle_affine,
                         triangle_coefficients,
-                        secondary_active_starts,
-                        secondary_active_ends,
-                        outer_active_starts,
-                        outer_active_ends,
                     )
+                    if start < outer_active_start:
+                        outer_active_start = start
+                    if end > outer_active_end:
+                        outer_active_end = end
             elif sorted_occupied[3] <= 0.0:
-                _fermigr_secondary_weights_numba(
+                start, end = _fermigr_secondary_pair_weights_numba(
                     occupied_tetra[tetrahedron_index, :, source_band_index],
                     full_target,
                     sample_energies,
@@ -548,27 +541,24 @@ def _fermi_golden_rule_weights_on_local_mesh_pair_parallel_numba(
                     triangle_strict,
                     triangle_affine,
                     triangle_coefficients,
-                    secondary_active_starts,
-                    secondary_active_ends,
                 )
-                if secondary_active_starts[0] < outer_active_starts[0]:
-                    outer_active_starts[0] = secondary_active_starts[0]
-                if secondary_active_ends[0] > outer_active_ends[0]:
-                    outer_active_ends[0] = secondary_active_ends[0]
-                for energy_index in range(secondary_active_starts[0], secondary_active_ends[0]):
+                if start < outer_active_start:
+                    outer_active_start = start
+                if end > outer_active_end:
+                    outer_active_end = end
+                for energy_index in range(start, end):
                     for vertex_index in range(4):
-                        outer_weights[energy_index, 0, vertex_index] += secondary_weights[
+                        outer_weights[energy_index, vertex_index] += secondary_weights[
                             energy_index,
-                            0,
                             vertex_index,
                         ]
 
-            for energy_index in range(outer_active_starts[0], outer_active_ends[0]):
+            for energy_index in range(outer_active_start, outer_active_end):
                 for point_index in range(20):
                     total = 0.0
                     for vertex_index in range(4):
                         total += (
-                            outer_weights[energy_index, 0, vertex_index]
+                            outer_weights[energy_index, vertex_index]
                             * tetrahedron_weight_matrix[
                                 vertex_index,
                                 point_index,
@@ -699,6 +689,96 @@ def _accumulate_small_tetra_fermigr_outer_numba(
                 outer_weights[energy_index, target_band_index, sorted_order[column_index]] += (
                     volume_factor * total
                 )
+
+
+@njit(cache=True)
+def _accumulate_small_tetra_fermigr_outer_pair_numba(
+    outer_weights: FloatArray,
+    case_id: int,
+    sorted_order: npt.NDArray[np.int64],
+    sorted_occupied: FloatArray,
+    sorted_target: FloatArray,
+    sample_energies: FloatArray,
+    sample_energies_sorted: bool,
+    outer_strict: FloatArray,
+    outer_affine: FloatArray,
+    outer_coefficients: FloatArray,
+    transformed_occupied: FloatArray,
+    transformed_target: FloatArray,
+    secondary_weights: FloatArray,
+    step_energies: FloatArray,
+    secondary_sorted_order: npt.NDArray[np.int64],
+    secondary_sorted_step_energies: FloatArray,
+    secondary_sorted_target: FloatArray,
+    secondary_sorted_occupied: FloatArray,
+    secondary_sorted_weights: FloatArray,
+    inner_strict: FloatArray,
+    inner_affine: FloatArray,
+    inner_coefficients: FloatArray,
+    energy_differences: FloatArray,
+    delta_weights: FloatArray,
+    delta_sorted_order: npt.NDArray[np.int64],
+    delta_sorted_energies: FloatArray,
+    delta_shifted_energies: FloatArray,
+    triangle_strict: FloatArray,
+    triangle_affine: FloatArray,
+    triangle_coefficients: FloatArray,
+) -> tuple[int, int]:
+    volume_factor = small_tetra_volume_and_coefficients(
+        case_id,
+        sorted_occupied,
+        outer_strict,
+        outer_affine,
+        outer_coefficients,
+    )
+    if volume_factor <= 1.0e-10:
+        return outer_weights.shape[0], 0
+
+    for row_index in range(4):
+        occupied_total = 0.0
+        target_total = 0.0
+        for column_index in range(4):
+            coefficient = outer_coefficients[row_index, column_index]
+            occupied_total += coefficient * sorted_occupied[column_index]
+            target_total += coefficient * sorted_target[column_index]
+        transformed_occupied[row_index] = occupied_total
+        transformed_target[row_index] = target_total
+
+    start, end = _fermigr_secondary_pair_weights_numba(
+        transformed_occupied,
+        transformed_target,
+        sample_energies,
+        sample_energies_sorted,
+        secondary_weights,
+        step_energies,
+        secondary_sorted_order,
+        secondary_sorted_step_energies,
+        secondary_sorted_target,
+        secondary_sorted_occupied,
+        secondary_sorted_weights,
+        inner_strict,
+        inner_affine,
+        inner_coefficients,
+        energy_differences,
+        delta_weights,
+        delta_sorted_order,
+        delta_sorted_energies,
+        delta_shifted_energies,
+        triangle_strict,
+        triangle_affine,
+        triangle_coefficients,
+    )
+
+    for energy_index in range(start, end):
+        for column_index in range(4):
+            total = 0.0
+            for row_index in range(4):
+                total += secondary_weights[energy_index, row_index] * outer_coefficients[
+                    row_index,
+                    column_index,
+                ]
+            outer_weights[energy_index, sorted_order[column_index]] += volume_factor * total
+    return start, end
 
 
 @njit(cache=True)
@@ -856,6 +936,153 @@ def _fermigr_secondary_weights_numba(
                         vertex_index,
                     ]
                 )
+
+
+@njit(cache=True)
+def _fermigr_secondary_pair_weights_numba(
+    occupied_vertices: FloatArray,
+    target_vertices: FloatArray,
+    sample_energies: FloatArray,
+    sample_energies_sorted: bool,
+    weights: FloatArray,
+    step_energies: FloatArray,
+    sorted_order: npt.NDArray[np.int64],
+    sorted_step_energies: FloatArray,
+    sorted_target: FloatArray,
+    sorted_occupied: FloatArray,
+    sorted_weights: FloatArray,
+    strict_energies: FloatArray,
+    affine: FloatArray,
+    coefficients: FloatArray,
+    energy_differences: FloatArray,
+    delta_weights: FloatArray,
+    delta_sorted_order: npt.NDArray[np.int64],
+    delta_sorted_energies: FloatArray,
+    delta_shifted_energies: FloatArray,
+    triangle_strict: FloatArray,
+    triangle_affine: FloatArray,
+    triangle_coefficients: FloatArray,
+) -> tuple[int, int]:
+    energy_count = sample_energies.shape[0]
+    weights[:, :] = 0.0
+
+    for vertex_index in range(4):
+        step_energies[vertex_index] = -target_vertices[vertex_index]
+    sort4(step_energies, sorted_order, sorted_step_energies)
+    for vertex_index in range(4):
+        source_vertex = sorted_order[vertex_index]
+        sorted_target[vertex_index] = target_vertices[source_vertex]
+        sorted_occupied[vertex_index] = occupied_vertices[source_vertex]
+
+    sorted_weights[:, :] = 0.0
+    active_start = energy_count
+    active_end = 0
+
+    if (sorted_step_energies[0] <= 0.0 < sorted_step_energies[1]) or (
+        sorted_step_energies[0] < 0.0 <= sorted_step_energies[1]
+    ):
+        active_start, active_end = _accumulate_small_tetra_fermigr_inner_numba(
+            sorted_weights,
+            0,
+            sorted_step_energies,
+            sorted_occupied,
+            sorted_target,
+            sample_energies,
+            sample_energies_sorted,
+            strict_energies,
+            affine,
+            coefficients,
+            energy_differences,
+            delta_weights,
+            delta_sorted_order,
+            delta_sorted_energies,
+            delta_shifted_energies,
+            triangle_strict,
+            triangle_affine,
+            triangle_coefficients,
+        )
+    elif (sorted_step_energies[1] <= 0.0 < sorted_step_energies[2]) or (
+        sorted_step_energies[1] < 0.0 <= sorted_step_energies[2]
+    ):
+        for case_id in (1, 2, 3):
+            start, end = _accumulate_small_tetra_fermigr_inner_numba(
+                sorted_weights,
+                case_id,
+                sorted_step_energies,
+                sorted_occupied,
+                sorted_target,
+                sample_energies,
+                sample_energies_sorted,
+                strict_energies,
+                affine,
+                coefficients,
+                energy_differences,
+                delta_weights,
+                delta_sorted_order,
+                delta_sorted_energies,
+                delta_shifted_energies,
+                triangle_strict,
+                triangle_affine,
+                triangle_coefficients,
+            )
+            if start < active_start:
+                active_start = start
+            if end > active_end:
+                active_end = end
+    elif (sorted_step_energies[2] <= 0.0 < sorted_step_energies[3]) or (
+        sorted_step_energies[2] < 0.0 <= sorted_step_energies[3]
+    ):
+        for case_id in (4, 5, 6):
+            start, end = _accumulate_small_tetra_fermigr_inner_numba(
+                sorted_weights,
+                case_id,
+                sorted_step_energies,
+                sorted_occupied,
+                sorted_target,
+                sample_energies,
+                sample_energies_sorted,
+                strict_energies,
+                affine,
+                coefficients,
+                energy_differences,
+                delta_weights,
+                delta_sorted_order,
+                delta_sorted_energies,
+                delta_shifted_energies,
+                triangle_strict,
+                triangle_affine,
+                triangle_coefficients,
+            )
+            if start < active_start:
+                active_start = start
+            if end > active_end:
+                active_end = end
+    elif sorted_step_energies[3] <= 0.0:
+        for vertex_index in range(4):
+            energy_differences[vertex_index] = sorted_target[vertex_index] - sorted_occupied[vertex_index]
+        active_start, active_end = _fermigr_delta_weights_numba(
+            sample_energies,
+            sample_energies_sorted,
+            energy_differences,
+            delta_weights,
+            delta_sorted_order,
+            delta_sorted_energies,
+            delta_shifted_energies,
+            triangle_strict,
+            triangle_affine,
+            triangle_coefficients,
+        )
+        for energy_index in range(active_start, active_end):
+            for vertex_index in range(4):
+                sorted_weights[energy_index, vertex_index] += delta_weights[energy_index, vertex_index]
+
+    for energy_index in range(active_start, active_end):
+        for vertex_index in range(4):
+            weights[energy_index, sorted_order[vertex_index]] = sorted_weights[
+                energy_index,
+                vertex_index,
+            ]
+    return active_start, active_end
 
 
 @njit(cache=True)

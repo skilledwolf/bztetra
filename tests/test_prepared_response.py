@@ -198,6 +198,62 @@ def test_prepared_response_evaluator_matches_multiband_frequency_response_kernel
     )
 
 
+def test_multiband_fermi_golden_rule_pair_parallel_matches_pairwise_single_band_calls() -> None:
+    bvec, occupied, target = _synthetic_multiband_response_case((4, 4, 4), 5)
+    real_energies = np.linspace(0.0, 1.25, 8, dtype=np.float64)
+
+    pair_parallel = fermi_golden_rule_weights(
+        bvec,
+        occupied,
+        target,
+        real_energies,
+        weight_grid_shape=(4, 4, 4),
+        method="optimized",
+    )
+
+    pairwise = np.empty_like(pair_parallel)
+    source_band_count = occupied.shape[-1]
+    target_band_count = target.shape[-1]
+    for source_band_index in range(source_band_count):
+        for target_band_index in range(target_band_count):
+            single_pair = fermi_golden_rule_weights(
+                bvec,
+                occupied[..., source_band_index : source_band_index + 1],
+                target[..., target_band_index : target_band_index + 1],
+                real_energies,
+                weight_grid_shape=(4, 4, 4),
+                method="optimized",
+            )
+            pairwise[..., target_band_index, source_band_index] = single_pair[..., 0, 0]
+
+    np.testing.assert_allclose(pair_parallel, pairwise, rtol=1.0e-12, atol=1.0e-12)
+
+
+def test_multiband_fermi_golden_rule_pair_parallel_preserves_unsorted_energy_order() -> None:
+    bvec, occupied, target = _synthetic_multiband_response_case((4, 4, 4), 5)
+    real_energies = np.linspace(0.0, 1.25, 8, dtype=np.float64)
+    order = np.array([3, 0, 6, 1, 5, 2, 7, 4], dtype=np.int64)
+
+    ordered = fermi_golden_rule_weights(
+        bvec,
+        occupied,
+        target,
+        real_energies,
+        weight_grid_shape=(4, 4, 4),
+        method="optimized",
+    )
+    shuffled = fermi_golden_rule_weights(
+        bvec,
+        occupied,
+        target,
+        real_energies[order],
+        weight_grid_shape=(4, 4, 4),
+        method="optimized",
+    )
+
+    np.testing.assert_allclose(shuffled, ordered[order], rtol=1.0e-12, atol=1.0e-12)
+
+
 def test_multiband_complex_frequency_pair_parallel_matches_pairwise_single_band_calls() -> None:
     bvec, occupied, target = _synthetic_multiband_response_case((4, 4, 4), 5)
     complex_energies = 1j * np.linspace(0.1, 1.5, 8, dtype=np.float64)
