@@ -1236,6 +1236,7 @@ def _complex_polarization_weights_on_local_mesh_pair_parallel_numba(
     for pair_index in prange(pair_count):
         source_band_index = pair_index // target_band_count
         target_band_index = pair_index % target_band_count
+        pair_weights = np.zeros((local_point_count, energy_count), dtype=np.complex128)
 
         sorted_order = np.empty(4, dtype=np.int64)
         sorted_occupied = np.empty(4, dtype=np.float64)
@@ -1284,11 +1285,9 @@ def _complex_polarization_weights_on_local_mesh_pair_parallel_numba(
 
             if sorted_occupied[0] <= 0.0 < sorted_occupied[1]:
                 _accumulate_small_tetra_polcmplx_outer_pair_direct_numba(
-                    local_weights,
+                    pair_weights,
                     local_points,
                     tetrahedron_weight_matrix,
-                    source_band_index,
-                    target_band_index,
                     0,
                     sorted_order,
                     sorted_occupied,
@@ -1317,11 +1316,9 @@ def _complex_polarization_weights_on_local_mesh_pair_parallel_numba(
             elif sorted_occupied[1] <= 0.0 < sorted_occupied[2]:
                 for case_id in (1, 2, 3):
                     _accumulate_small_tetra_polcmplx_outer_pair_direct_numba(
-                        local_weights,
+                        pair_weights,
                         local_points,
                         tetrahedron_weight_matrix,
-                        source_band_index,
-                        target_band_index,
                         case_id,
                         sorted_order,
                         sorted_occupied,
@@ -1350,11 +1347,9 @@ def _complex_polarization_weights_on_local_mesh_pair_parallel_numba(
             elif sorted_occupied[2] <= 0.0 < sorted_occupied[3]:
                 for case_id in (4, 5, 6):
                     _accumulate_small_tetra_polcmplx_outer_pair_direct_numba(
-                        local_weights,
+                        pair_weights,
                         local_points,
                         tetrahedron_weight_matrix,
-                        source_band_index,
-                        target_band_index,
                         case_id,
                         sorted_order,
                         sorted_occupied,
@@ -1382,10 +1377,8 @@ def _complex_polarization_weights_on_local_mesh_pair_parallel_numba(
                     )
             elif sorted_occupied[3] <= 0.0:
                 _polcmplx_secondary_pair_direct_numba(
-                    local_weights,
+                    pair_weights,
                     local_points,
-                    source_band_index,
-                    target_band_index,
                     tetrahedron_weight_matrix,
                     occupied_tetra[tetrahedron_index, :, source_band_index],
                     full_target,
@@ -1405,17 +1398,24 @@ def _complex_polarization_weights_on_local_mesh_pair_parallel_numba(
                     sample_weight_imag,
                 )
 
+        for local_point_index in range(local_point_count):
+            for energy_index in range(energy_count):
+                local_weights[
+                    local_point_index,
+                    energy_index,
+                    target_band_index,
+                    source_band_index,
+                ] = pair_weights[local_point_index, energy_index]
+
     local_weights /= float(normalization)
     return local_weights
 
 
 @njit(cache=True)
 def _accumulate_small_tetra_polcmplx_outer_pair_direct_numba(
-    local_weights: ComplexArray,
+    pair_weights: ComplexArray,
     local_points: npt.NDArray[np.int64],
     tetrahedron_weight_matrix: FloatArray,
-    source_band_index: int,
-    target_band_index: int,
     case_id: int,
     sorted_order: npt.NDArray[np.int64],
     sorted_occupied: FloatArray,
@@ -1477,10 +1477,8 @@ def _accumulate_small_tetra_polcmplx_outer_pair_direct_numba(
             outer_point_coefficients[row_index, point_index] = volume_factor * total
 
     _polcmplx_secondary_pair_direct_numba(
-        local_weights,
+        pair_weights,
         local_points,
-        source_band_index,
-        target_band_index,
         outer_point_coefficients,
         transformed_occupied,
         transformed_target,
@@ -1503,10 +1501,8 @@ def _accumulate_small_tetra_polcmplx_outer_pair_direct_numba(
 
 @njit(cache=True)
 def _polcmplx_secondary_pair_direct_numba(
-    local_weights: ComplexArray,
+    pair_weights: ComplexArray,
     local_points: npt.NDArray[np.int64],
-    source_band_index: int,
-    target_band_index: int,
     point_coefficients_base: FloatArray,
     occupied_vertices: FloatArray,
     target_vertices: FloatArray,
@@ -1537,10 +1533,8 @@ def _polcmplx_secondary_pair_direct_numba(
         sorted_step_energies[0] < 0.0 <= sorted_step_energies[1]
     ):
         _accumulate_small_tetra_polcmplx_inner_pair_direct_numba(
-            local_weights,
+            pair_weights,
             local_points,
-            source_band_index,
-            target_band_index,
             point_coefficients_base,
             0,
             sorted_order,
@@ -1562,10 +1556,8 @@ def _polcmplx_secondary_pair_direct_numba(
     ):
         for case_id in (1, 2, 3):
             _accumulate_small_tetra_polcmplx_inner_pair_direct_numba(
-                local_weights,
+                pair_weights,
                 local_points,
-                source_band_index,
-                target_band_index,
                 point_coefficients_base,
                 case_id,
                 sorted_order,
@@ -1587,10 +1579,8 @@ def _polcmplx_secondary_pair_direct_numba(
     ):
         for case_id in (4, 5, 6):
             _accumulate_small_tetra_polcmplx_inner_pair_direct_numba(
-                local_weights,
+                pair_weights,
                 local_points,
-                source_band_index,
-                target_band_index,
                 point_coefficients_base,
                 case_id,
                 sorted_order,
@@ -1617,10 +1607,8 @@ def _polcmplx_secondary_pair_direct_numba(
                     point_index,
                 ]
         _accumulate_polcmplx_point_weights_numba(
-            local_weights,
+            pair_weights,
             local_points,
-            source_band_index,
-            target_band_index,
             sample_energy_real,
             sample_energy_imag,
             energy_differences,
@@ -1632,10 +1620,8 @@ def _polcmplx_secondary_pair_direct_numba(
 
 @njit(cache=True)
 def _accumulate_small_tetra_polcmplx_inner_pair_direct_numba(
-    local_weights: ComplexArray,
+    pair_weights: ComplexArray,
     local_points: npt.NDArray[np.int64],
-    source_band_index: int,
-    target_band_index: int,
     point_coefficients_base: FloatArray,
     case_id: int,
     sorted_order: npt.NDArray[np.int64],
@@ -1684,10 +1670,8 @@ def _accumulate_small_tetra_polcmplx_inner_pair_direct_numba(
             point_coefficients[row_index, point_index] = volume_factor * total
 
     _accumulate_polcmplx_point_weights_numba(
-        local_weights,
+        pair_weights,
         local_points,
-        source_band_index,
-        target_band_index,
         sample_energy_real,
         sample_energy_imag,
         energy_differences,
@@ -1699,10 +1683,8 @@ def _accumulate_small_tetra_polcmplx_inner_pair_direct_numba(
 
 @njit(cache=True)
 def _accumulate_polcmplx_point_weights_numba(
-    local_weights: ComplexArray,
+    pair_weights: ComplexArray,
     local_points: npt.NDArray[np.int64],
-    source_band_index: int,
-    target_band_index: int,
     sample_energy_real: FloatArray,
     sample_energy_imag: FloatArray,
     energy_differences: FloatArray,
@@ -1729,12 +1711,7 @@ def _accumulate_polcmplx_point_weights_numba(
                 coefficient = point_coefficients[vertex_index, point_index]
                 total_real += coefficient * sample_weight_real[vertex_index]
                 total_imag += coefficient * sample_weight_imag[vertex_index]
-            local_weights[
-                local_points[point_index],
-                energy_index,
-                target_band_index,
-                source_band_index,
-            ] += total_real + 1j * total_imag
+            pair_weights[local_points[point_index], energy_index] += total_real + 1j * total_imag
 
 
 @njit(cache=True)
