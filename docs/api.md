@@ -42,9 +42,17 @@ with 2D shapes and the linear triangle method only.
 
 ::: bztetra.twod.static_polarization_weights
 
+::: bztetra.twod.static_polarization_observables
+
 ::: bztetra.twod.fermi_golden_rule_weights
 
+::: bztetra.twod.fermi_golden_rule_observables
+
 ::: bztetra.twod.complex_frequency_polarization_weights
+
+::: bztetra.twod.complex_frequency_polarization_observables
+
+::: bztetra.twod.retarded_response_observables
 
 ::: bztetra.twod.TriangleIntegrationMesh
 
@@ -71,6 +79,14 @@ with 2D shapes and the linear triangle method only.
 ::: bztetra.fermi_golden_rule_weights
 
 ::: bztetra.complex_frequency_polarization_weights
+
+## Causality And Reconstruction
+
+::: bztetra.reconstruct_retarded_response
+
+::: bztetra.RetardedResponse
+
+::: bztetra.KramersKronigDiagnostics
 
 ## Advanced Helpers
 

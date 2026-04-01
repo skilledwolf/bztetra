@@ -4,7 +4,10 @@ from dataclasses import dataclass
 
 import numpy as np
 import numpy.typing as npt
+from numba import njit
 
+from ..causality import reconstruct_retarded_response
+from ..causality import RetardedResponse
 from .._grids import ComplexArray
 from .._grids import normalize_complex_energy_samples
 from .._grids import normalize_energy_samples
@@ -14,10 +17,16 @@ from ._grids import interpolated_triangle_energies
 from ._grids import normalize_eigenvalues
 from ._response_kernels import _complex_polarization_weights_on_local_mesh_numba
 from ._response_kernels import _complex_polarization_weights_on_local_mesh_pair_parallel_numba
+from ._response_kernels import _complex_polarization_observables_on_local_mesh_numba
+from ._response_kernels import _complex_polarization_observables_on_local_mesh_pair_parallel_numba
 from ._response_kernels import _fermi_golden_rule_weights_on_local_mesh_numba
 from ._response_kernels import _fermi_golden_rule_weights_on_local_mesh_pair_parallel_numba
+from ._response_kernels import _fermi_golden_rule_observables_on_local_mesh_numba
+from ._response_kernels import _fermi_golden_rule_observables_on_local_mesh_pair_parallel_numba
 from ._response_kernels import _nesting_function_weights_on_local_mesh_numba
 from ._response_kernels import _phase_space_overlap_weights_on_local_mesh_numba
+from ._response_kernels import _static_polarization_observables_on_local_mesh_numba
+from ._response_kernels import _static_polarization_observables_on_local_mesh_pair_parallel_numba
 from ._response_kernels import _static_polarization_weights_on_local_mesh_numba
 from ._response_kernels import _static_polarization_weights_on_local_mesh_pair_parallel_numba
 from .geometry import TriangleIntegrationMesh
@@ -75,6 +84,33 @@ class PreparedResponseEvaluator:
         output_flat = interpolate_local_values(self.mesh, local_weights)
         return _unflatten_pair_band_last(output_flat, self.mesh.weight_grid_shape)
 
+    def static_polarization_observables(
+        self,
+        *,
+        matrix_elements: npt.ArrayLike | None = None,
+    ) -> npt.NDArray[np.generic]:
+        """Evaluate directly contracted 2D static observables.
+
+        `matrix_elements` may have shape `(..., wx, wy, ntarget, nsource)`,
+        `(..., nlocal, ntarget, nsource)`, or `(..., ntarget, nsource)`. The
+        leading axes are returned after contraction. When omitted, the response
+        is fully contracted with unit weights and the result is a scalar.
+        """
+
+        local_matrix_elements, channel_shape = _normalize_response_matrix_elements(
+            self.mesh,
+            matrix_elements,
+            self.target_triangles.shape[2],
+            self.occupied_triangles.shape[2],
+        )
+        contracted = _static_polarization_observables_on_local_mesh(
+            self.mesh,
+            self.occupied_triangles,
+            self.target_triangles,
+            local_matrix_elements,
+        )
+        return _reshape_static_contracted_observables(contracted, channel_shape)
+
     def fermi_golden_rule_weights(self, energies: npt.ArrayLike) -> FloatArray:
         """Evaluate real-frequency transition weights. Replaces `libtetrabz_fermigr`."""
 
@@ -100,6 +136,112 @@ class PreparedResponseEvaluator:
         )
         output_flat = interpolate_local_values(self.mesh, local_weights)
         return _unflatten_energy_pair_band_last(output_flat, self.mesh.weight_grid_shape)
+
+    def fermi_golden_rule_observables(
+        self,
+        energies: npt.ArrayLike,
+        *,
+        matrix_elements: npt.ArrayLike | None = None,
+    ) -> npt.NDArray[np.generic]:
+        """Evaluate directly contracted 2D real-frequency observables.
+
+        `matrix_elements` may have shape `(..., wx, wy, ntarget, nsource)`,
+        `(..., nlocal, ntarget, nsource)`, or `(..., ntarget, nsource)`. The
+        leading axes are returned after the energy axis. When omitted, the
+        response is fully contracted with unit weights and the result has shape
+        `(nenergy,)`.
+        """
+
+        sample_energies = normalize_energy_samples(energies)
+        local_matrix_elements, channel_shape = _normalize_response_matrix_elements(
+            self.mesh,
+            matrix_elements,
+            self.target_triangles.shape[2],
+            self.occupied_triangles.shape[2],
+        )
+        contracted = _fermi_golden_rule_observables_on_local_mesh(
+            self.mesh,
+            self.occupied_triangles,
+            self.target_triangles,
+            sample_energies,
+            local_matrix_elements,
+        )
+        return _reshape_contracted_observables(contracted, channel_shape)
+
+    def complex_frequency_polarization_observables(
+        self,
+        energies: npt.ArrayLike,
+        *,
+        matrix_elements: npt.ArrayLike | None = None,
+    ) -> ComplexArray:
+        """Evaluate directly contracted 2D complex-frequency observables.
+
+        `matrix_elements` may have shape `(..., wx, wy, ntarget, nsource)`,
+        `(..., nlocal, ntarget, nsource)`, or `(..., ntarget, nsource)`. The
+        leading axes are returned after the energy axis. When omitted, the
+        response is fully contracted with unit weights and the result has shape
+        `(nenergy,)`.
+        """
+
+        sample_energies = normalize_complex_energy_samples(energies)
+        local_matrix_elements, channel_shape = _normalize_response_matrix_elements(
+            self.mesh,
+            matrix_elements,
+            self.target_triangles.shape[2],
+            self.occupied_triangles.shape[2],
+        )
+        contracted = _complex_polarization_observables_on_local_mesh(
+            self.mesh,
+            self.occupied_triangles,
+            self.target_triangles,
+            sample_energies,
+            local_matrix_elements,
+        )
+        return _reshape_contracted_observables(contracted, channel_shape)
+
+    def transition_energy_bounds(self) -> tuple[float, float]:
+        """Return conservative bounds for occupied-to-empty transition energies."""
+
+        lower_bound, upper_bound = _transition_energy_bounds_numba(
+            self.occupied_triangles,
+            self.target_triangles,
+        )
+        return max(0.0, lower_bound), max(0.0, upper_bound)
+
+    def retarded_response_observables(
+        self,
+        energies: npt.ArrayLike,
+        *,
+        matrix_elements: npt.ArrayLike | None = None,
+        assume_hermitian: bool = False,
+    ) -> RetardedResponse:
+        """Reconstruct the retarded response from the fast real-frequency path.
+
+        This convenience method evaluates the imaginary part from
+        `fermi_golden_rule_observables`, computes the zero-frequency anchor with
+        `static_polarization_observables`, derives transition-energy support
+        bounds from the prepared source/target bands, and then applies the
+        automatic Kramers-Kronig reconstruction. By default, this reconstructs
+        the real-axis continuation associated with positive transition energies,
+        which matches `complex_frequency_polarization_observables(-omega + 0j)`.
+        """
+
+        sample_energies = normalize_energy_samples(energies)
+        spectral_weights = self.fermi_golden_rule_observables(
+            sample_energies,
+            matrix_elements=matrix_elements,
+        )
+        static_anchor = self.static_polarization_observables(
+            matrix_elements=matrix_elements,
+        )
+        support_bounds = self.transition_energy_bounds()
+        return reconstruct_retarded_response(
+            sample_energies,
+            np.pi * spectral_weights,
+            static_anchor=static_anchor,
+            support_bounds=support_bounds if support_bounds[1] > support_bounds[0] else None,
+            assume_hermitian=assume_hermitian,
+        )
 
 
 def prepare_response_evaluator(
@@ -212,6 +354,29 @@ def static_polarization_weights(
     return evaluator.static_polarization_weights()
 
 
+def static_polarization_observables(
+    reciprocal_vectors: npt.ArrayLike,
+    occupied_eigenvalues: npt.ArrayLike,
+    target_eigenvalues: npt.ArrayLike,
+    *,
+    matrix_elements: npt.ArrayLike | None = None,
+    weight_grid_shape: tuple[int, int] | None = None,
+    method: int | TriangleMethod = "linear",
+) -> npt.NDArray[np.generic]:
+    """Evaluate directly contracted 2D static observables."""
+
+    evaluator = prepare_response_evaluator(
+        reciprocal_vectors,
+        occupied_eigenvalues,
+        target_eigenvalues,
+        weight_grid_shape=weight_grid_shape,
+        method=method,
+    )
+    return evaluator.static_polarization_observables(
+        matrix_elements=matrix_elements,
+    )
+
+
 def fermi_golden_rule_weights(
     reciprocal_vectors: npt.ArrayLike,
     occupied_eigenvalues: npt.ArrayLike,
@@ -264,6 +429,97 @@ def complex_frequency_polarization_weights(
     return evaluator.complex_frequency_polarization_weights(energies)
 
 
+def fermi_golden_rule_observables(
+    reciprocal_vectors: npt.ArrayLike,
+    occupied_eigenvalues: npt.ArrayLike,
+    target_eigenvalues: npt.ArrayLike,
+    energies: npt.ArrayLike,
+    *,
+    matrix_elements: npt.ArrayLike | None = None,
+    weight_grid_shape: tuple[int, int] | None = None,
+    method: int | TriangleMethod = "linear",
+) -> npt.NDArray[np.generic]:
+    """Evaluate directly contracted 2D real-frequency observables.
+
+    `matrix_elements` may have shape `(..., wx, wy, ntarget, nsource)`,
+    `(..., nlocal, ntarget, nsource)`, or `(..., ntarget, nsource)`. The
+    leading axes are returned after the energy axis. When omitted, the
+    response is fully contracted with unit weights and the result has shape
+    `(nenergy,)`.
+    """
+
+    evaluator = prepare_response_evaluator(
+        reciprocal_vectors,
+        occupied_eigenvalues,
+        target_eigenvalues,
+        weight_grid_shape=weight_grid_shape,
+        method=method,
+    )
+    return evaluator.fermi_golden_rule_observables(
+        energies,
+        matrix_elements=matrix_elements,
+    )
+
+
+def complex_frequency_polarization_observables(
+    reciprocal_vectors: npt.ArrayLike,
+    occupied_eigenvalues: npt.ArrayLike,
+    target_eigenvalues: npt.ArrayLike,
+    energies: npt.ArrayLike,
+    *,
+    matrix_elements: npt.ArrayLike | None = None,
+    weight_grid_shape: tuple[int, int] | None = None,
+    method: int | TriangleMethod = "linear",
+) -> ComplexArray:
+    """Evaluate directly contracted 2D complex-frequency observables.
+
+    `matrix_elements` may have shape `(..., wx, wy, ntarget, nsource)`,
+    `(..., nlocal, ntarget, nsource)`, or `(..., ntarget, nsource)`. The
+    leading axes are returned after the energy axis. When omitted, the
+    response is fully contracted with unit weights and the result has shape
+    `(nenergy,)`.
+    """
+
+    evaluator = prepare_response_evaluator(
+        reciprocal_vectors,
+        occupied_eigenvalues,
+        target_eigenvalues,
+        weight_grid_shape=weight_grid_shape,
+        method=method,
+    )
+    return evaluator.complex_frequency_polarization_observables(
+        energies,
+        matrix_elements=matrix_elements,
+    )
+
+
+def retarded_response_observables(
+    reciprocal_vectors: npt.ArrayLike,
+    occupied_eigenvalues: npt.ArrayLike,
+    target_eigenvalues: npt.ArrayLike,
+    energies: npt.ArrayLike,
+    *,
+    matrix_elements: npt.ArrayLike | None = None,
+    weight_grid_shape: tuple[int, int] | None = None,
+    method: int | TriangleMethod = "linear",
+    assume_hermitian: bool = False,
+) -> RetardedResponse:
+    """Reconstruct the retarded response from real-frequency spectral weights."""
+
+    evaluator = prepare_response_evaluator(
+        reciprocal_vectors,
+        occupied_eigenvalues,
+        target_eigenvalues,
+        weight_grid_shape=weight_grid_shape,
+        method=method,
+    )
+    return evaluator.retarded_response_observables(
+        energies,
+        matrix_elements=matrix_elements,
+        assume_hermitian=assume_hermitian,
+    )
+
+
 def _phase_space_overlap_weights_on_local_mesh(
     mesh: TriangleIntegrationMesh,
     occupied_triangles: FloatArray,
@@ -311,6 +567,30 @@ def _static_polarization_weights_on_local_mesh(
         occupied_triangles,
         target_triangles,
         mesh.local_point_count,
+        _triangle_area(mesh),
+    )
+
+
+def _static_polarization_observables_on_local_mesh(
+    mesh: TriangleIntegrationMesh,
+    occupied_triangles: FloatArray,
+    target_triangles: FloatArray,
+    local_matrix_elements: npt.NDArray[np.generic],
+) -> npt.NDArray[np.generic]:
+    pair_count = occupied_triangles.shape[2] * target_triangles.shape[2]
+    if pair_count >= PAIR_PARALLEL_THRESHOLD and target_triangles.shape[2] >= PAIR_PARALLEL_TARGET_THRESHOLD:
+        return _static_polarization_observables_on_local_mesh_pair_parallel_numba(
+            mesh.local_point_indices,
+            occupied_triangles,
+            target_triangles,
+            local_matrix_elements,
+            _triangle_area(mesh),
+        )
+    return _static_polarization_observables_on_local_mesh_numba(
+        mesh.local_point_indices,
+        occupied_triangles,
+        target_triangles,
+        local_matrix_elements,
         _triangle_area(mesh),
     )
 
@@ -370,6 +650,63 @@ def _complex_polarization_weights_on_local_mesh(
     )
 
 
+def _fermi_golden_rule_observables_on_local_mesh(
+    mesh: TriangleIntegrationMesh,
+    occupied_triangles: FloatArray,
+    target_triangles: FloatArray,
+    sample_energies: FloatArray,
+    local_matrix_elements: npt.NDArray[np.generic],
+) -> npt.NDArray[np.generic]:
+    pair_count = occupied_triangles.shape[2] * target_triangles.shape[2]
+    sample_energies_sorted = bool(np.all(sample_energies[1:] >= sample_energies[:-1]))
+    if pair_count >= PAIR_PARALLEL_THRESHOLD and target_triangles.shape[2] >= PAIR_PARALLEL_TARGET_THRESHOLD:
+        return _fermi_golden_rule_observables_on_local_mesh_pair_parallel_numba(
+            mesh.local_point_indices,
+            occupied_triangles,
+            target_triangles,
+            sample_energies,
+            sample_energies_sorted,
+            local_matrix_elements,
+            _triangle_area(mesh),
+        )
+    return _fermi_golden_rule_observables_on_local_mesh_numba(
+        mesh.local_point_indices,
+        occupied_triangles,
+        target_triangles,
+        sample_energies,
+        sample_energies_sorted,
+        local_matrix_elements,
+        _triangle_area(mesh),
+    )
+
+
+def _complex_polarization_observables_on_local_mesh(
+    mesh: TriangleIntegrationMesh,
+    occupied_triangles: FloatArray,
+    target_triangles: FloatArray,
+    sample_energies: ComplexArray,
+    local_matrix_elements: npt.NDArray[np.generic],
+) -> ComplexArray:
+    pair_count = occupied_triangles.shape[2] * target_triangles.shape[2]
+    if pair_count >= PAIR_PARALLEL_THRESHOLD and target_triangles.shape[2] >= PAIR_PARALLEL_TARGET_THRESHOLD:
+        return _complex_polarization_observables_on_local_mesh_pair_parallel_numba(
+            mesh.local_point_indices,
+            occupied_triangles,
+            target_triangles,
+            sample_energies,
+            local_matrix_elements,
+            _triangle_area(mesh),
+        )
+    return _complex_polarization_observables_on_local_mesh_numba(
+        mesh.local_point_indices,
+        occupied_triangles,
+        target_triangles,
+        sample_energies,
+        local_matrix_elements,
+        _triangle_area(mesh),
+    )
+
+
 def _triangle_area(mesh: TriangleIntegrationMesh) -> float:
     return 0.5 / float(np.prod(mesh.energy_grid_shape, dtype=np.int64))
 
@@ -392,3 +729,167 @@ def _unflatten_energy_pair_band_last(
         (grid_shape[1], grid_shape[0], energy_count, target_band_count, source_band_count)
     )
     return np.transpose(reshaped, (2, 1, 0, 3, 4))
+
+
+def _normalize_response_matrix_elements(
+    mesh: TriangleIntegrationMesh,
+    matrix_elements: npt.ArrayLike | None,
+    target_band_count: int,
+    source_band_count: int,
+) -> tuple[npt.NDArray[np.generic], tuple[int, ...]]:
+    if matrix_elements is None:
+        local = np.ones(
+            (mesh.local_point_count, target_band_count, source_band_count, 1),
+            dtype=np.float64,
+        )
+        return local, ()
+
+    if not np.issubdtype(np.asarray(matrix_elements).dtype, np.number):
+        raise ValueError("matrix_elements must be numeric")
+
+    dtype = np.complex128 if np.iscomplexobj(matrix_elements) else np.float64
+    values = np.asarray(matrix_elements, dtype=dtype)
+    expected_local_tail = (mesh.local_point_count, target_band_count, source_band_count)
+    expected_grid_tail = mesh.weight_grid_shape + (target_band_count, source_band_count)
+
+    if values.ndim >= 3 and values.shape[-3:] == expected_local_tail:
+        channel_shape = tuple(int(item) for item in values.shape[:-3])
+        channel_count = _flattened_channel_count(channel_shape)
+        flattened = np.ascontiguousarray(
+            values.reshape((channel_count, mesh.local_point_count, target_band_count, source_band_count))
+        )
+        return np.ascontiguousarray(np.transpose(flattened, (1, 2, 3, 0))), channel_shape
+
+    if values.ndim >= 4 and values.shape[-4:] == expected_grid_tail:
+        channel_shape = tuple(int(item) for item in values.shape[:-4])
+        channel_count = _flattened_channel_count(channel_shape)
+        point_count = int(np.prod(mesh.weight_grid_shape, dtype=np.int64))
+        flattened = np.ascontiguousarray(
+            values.reshape(
+                (
+                    channel_count,
+                    mesh.weight_grid_shape[0],
+                    mesh.weight_grid_shape[1],
+                    target_band_count,
+                    source_band_count,
+                )
+            )
+        )
+        flattened = np.transpose(flattened, (0, 2, 1, 3, 4)).reshape(
+            (channel_count, point_count, target_band_count, source_band_count)
+        )
+        grid_matrix_elements = np.ascontiguousarray(np.transpose(flattened, (1, 2, 3, 0)))
+        if not mesh.interpolation_required:
+            return grid_matrix_elements, channel_shape
+        if mesh.interpolation_indices is None or mesh.interpolation_weights is None:
+            raise ValueError("interpolated mesh requires cached interpolation stencils")
+        local = np.zeros(
+            (mesh.local_point_count, target_band_count, source_band_count, channel_count),
+            dtype=dtype,
+        )
+        _pull_weight_grid_matrix_elements_to_local_points_numba(
+            mesh.interpolation_indices,
+            mesh.interpolation_weights,
+            grid_matrix_elements,
+            local,
+        )
+        return local, channel_shape
+
+    if values.ndim >= 2 and values.shape[-2:] == (target_band_count, source_band_count):
+        channel_shape = tuple(int(item) for item in values.shape[:-2])
+        channel_count = _flattened_channel_count(channel_shape)
+        flattened = np.ascontiguousarray(values.reshape((channel_count, target_band_count, source_band_count)))
+        local = np.empty(
+            (mesh.local_point_count, target_band_count, source_band_count, channel_count),
+            dtype=dtype,
+        )
+        local[:] = np.transpose(flattened, (1, 2, 0))
+        return local, channel_shape
+
+    raise ValueError(
+        "matrix_elements must have shape (..., wx, wy, ntarget, nsource), "
+        "(..., nlocal, ntarget, nsource), or (..., ntarget, nsource)"
+    )
+
+
+def _flattened_channel_count(channel_shape: tuple[int, ...]) -> int:
+    return int(np.prod(channel_shape, dtype=np.int64)) if channel_shape else 1
+
+
+def _reshape_contracted_observables(
+    values: npt.NDArray[np.generic],
+    channel_shape: tuple[int, ...],
+) -> npt.NDArray[np.generic]:
+    if not channel_shape:
+        return values[:, 0]
+    return values.reshape((values.shape[0],) + channel_shape)
+
+
+def _reshape_static_contracted_observables(
+    values: npt.NDArray[np.generic],
+    channel_shape: tuple[int, ...],
+) -> npt.NDArray[np.generic]:
+    if not channel_shape:
+        return values[0]
+    return values.reshape(channel_shape)
+
+
+@njit(cache=True)
+def _pull_weight_grid_matrix_elements_to_local_points_numba(
+    interpolation_indices,
+    interpolation_weights,
+    grid_matrix_elements,
+    local_matrix_elements,
+) -> None:
+    target_band_count = grid_matrix_elements.shape[1]
+    source_band_count = grid_matrix_elements.shape[2]
+    channel_count = grid_matrix_elements.shape[3]
+
+    for local_index in range(interpolation_indices.shape[0]):
+        for stencil_index in range(interpolation_indices.shape[1]):
+            weight = interpolation_weights[local_index, stencil_index]
+            if weight == 0.0:
+                continue
+            grid_index = interpolation_indices[local_index, stencil_index]
+            for target_band_index in range(target_band_count):
+                for source_band_index in range(source_band_count):
+                    for channel_index in range(channel_count):
+                        local_matrix_elements[
+                            local_index,
+                            target_band_index,
+                            source_band_index,
+                            channel_index,
+                        ] += (
+                            weight
+                            * grid_matrix_elements[
+                                grid_index,
+                                target_band_index,
+                                source_band_index,
+                                channel_index,
+                            ]
+                        )
+
+
+@njit(cache=True)
+def _transition_energy_bounds_numba(
+    occupied_triangles: FloatArray,
+    target_triangles: FloatArray,
+) -> tuple[float, float]:
+    lower_bound = np.inf
+    upper_bound = -np.inf
+
+    for triangle_index in range(occupied_triangles.shape[0]):
+        for vertex_index in range(occupied_triangles.shape[1]):
+            for source_band_index in range(occupied_triangles.shape[2]):
+                occupied_value = occupied_triangles[triangle_index, vertex_index, source_band_index]
+                for target_band_index in range(target_triangles.shape[2]):
+                    delta = (
+                        target_triangles[triangle_index, vertex_index, target_band_index]
+                        - occupied_value
+                    )
+                    if delta < lower_bound:
+                        lower_bound = delta
+                    if delta > upper_bound:
+                        upper_bound = delta
+
+    return lower_bound, upper_bound

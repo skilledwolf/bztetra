@@ -3,6 +3,9 @@
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as package_version
 
+from .causality import KramersKronigDiagnostics
+from .causality import reconstruct_retarded_response
+from .causality import RetardedResponse
 from .dos import density_of_states_weights
 from .dos import integrated_density_of_states_weights
 from .occupancy import FermiEnergySolution
@@ -37,11 +40,14 @@ __all__ = [
     "fermi_golden_rule_weights",
     "integrated_density_of_states_weights",
     "IntegrationMesh",
+    "KramersKronigDiagnostics",
     "nesting_function_weights",
     "occupation_weights",
     "phase_space_overlap_weights",
     "PreparedResponseEvaluator",
     "prepare_response_evaluator",
+    "reconstruct_retarded_response",
+    "RetardedResponse",
     "SimplexCut",
     "solve_fermi_energy",
     "static_polarization_weights",

@@ -171,6 +171,8 @@ triangle response kernels:
 
 - `python examples/plot_twod_phase_space_overlap.py`
 - `python examples/plot_twod_lindhard.py`
+- `python examples/plot_twod_2deg_spectral_function.py`
+- `python examples/plot_twod_2deg_retarded_response.py`
 
 <figure markdown>
   ![2D free-electron phase-space overlap](assets/plots/twod_phase_space_overlap.png)
@@ -187,6 +189,52 @@ triangle response kernels:
     the Kohn cusp at \(2k_F\).
   </figcaption>
 </figure>
+
+For a dense real-frequency sweep on the 2D path, use the direct contracted API
+instead of materializing the full k-resolved tensor:
+
+```python
+import numpy as np
+from bztetra.twod import fermi_golden_rule_observables
+
+values = fermi_golden_rule_observables(
+    bvec,
+    occupied,
+    target,
+    np.linspace(0.0, 5.5, 181),
+    method="linear",
+)
+spectral_curve = values * abs(np.linalg.det(bvec))
+```
+
+`examples/plot_twod_2deg_spectral_function.py` uses that path to build a
+\((q_x, \omega)\) intensity map for the free-electron particle-hole continuum.
+
+If you also want the real part on the same energy grid, use the automatic
+causality wrapper:
+
+```python
+from bztetra.twod import retarded_response_observables
+
+response = retarded_response_observables(
+    bvec,
+    occupied,
+    target,
+    np.linspace(0.0, 5.5, 181),
+    method="linear",
+)
+real_curve = response.real
+imag_curve = response.imag
+```
+
+This reconstruction follows the same occupied-to-empty branch as
+`complex_frequency_polarization_observables(-omega + 0j)`.
+
+`examples/plot_twod_2deg_retarded_response.py` turns that into a 2DEG review
+plot with
+- a spectral-weight map,
+- the reconstructed real-part map,
+- and a direct comparison against `complex_frequency_polarization_observables(-omega + 0j)` for one line cut.
 
 ## Complex-Frequency Polarization On The Matsubara Axis
 
@@ -235,5 +283,7 @@ polarization = weights.sum(axis=(1, 2, 3)) * np.linalg.det(bvec)
 - `python examples/plot_twod_square_lattice_dos.py`
 - `python examples/plot_twod_phase_space_overlap.py`
 - `python examples/plot_twod_lindhard.py`
+- `python examples/plot_twod_2deg_spectral_function.py`
+- `python examples/plot_twod_2deg_retarded_response.py`
 - `python examples/plot_fermi_golden_rule.py`
 - `python examples/review_geometry_and_cuts.py`

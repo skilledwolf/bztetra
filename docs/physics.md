@@ -184,6 +184,24 @@ g_n(\mathbf{k})\, w_{\alpha,\mathbf{k},n}.
 The same pattern applies to response functions with
 \(M_{nm}(\mathbf{k})\,w_{E,\mathbf{k},m,n}\).
 
+For dense 2D \((q_x, q_y, \omega)\) sweeps where you only need the final
+contracted observable, `bztetra.twod` also exposes direct contracted response
+evaluators via `fermi_golden_rule_observables` and
+`complex_frequency_polarization_observables`. These accept matrix elements with
+arbitrary leading channel axes, so you can evaluate operator-resolved response
+matrices such as \(\chi_{AB}\) without materializing the full k-resolved weight
+tensor.
+
+For the same occupied-to-empty branch, the positive-frequency spectral weights
+also determine the negative-real-axis continuation of the complex kernel. The
+public causality helper `reconstruct_retarded_response` and the 2D convenience
+wrapper `retarded_response_observables` automate that reconstruction from
+`fermi_golden_rule_observables`, using the static observable as the
+zero-frequency anchor and the source-to-target transition-energy bounds as an
+automatic compact-support window. In the current package conventions, this
+matches evaluating `complex_frequency_polarization_observables(-omega + 0j)` on
+the real axis.
+
 ## Where To Go Next
 
 - [Examples](examples.md) for worked examples with plots.

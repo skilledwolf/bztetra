@@ -311,6 +311,113 @@ def _static_polarization_weights_on_local_mesh_pair_parallel_numba(
 
 
 @njit(cache=True)
+def _static_polarization_observables_on_local_mesh_numba(
+    local_point_indices,
+    occupied_triangles,
+    target_triangles,
+    local_matrix_elements,
+    triangle_area,
+):
+    source_band_count = occupied_triangles.shape[2]
+    target_band_count = target_triangles.shape[2]
+    channel_count = local_matrix_elements.shape[3]
+    contracted = np.zeros(channel_count, dtype=local_matrix_elements.dtype)
+    parent_weights = np.empty(3, dtype=np.float64)
+    polygon_a = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
+    polygon_b = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
+    delta_vertices = np.empty(3, dtype=np.float64)
+    sorted_order = np.empty(3, dtype=np.int64)
+    sorted_delta = np.empty(3, dtype=np.float64)
+    sorted_weights = np.empty(3, dtype=np.float64)
+
+    for triangle_index in range(occupied_triangles.shape[0]):
+        local_points = local_point_indices[triangle_index]
+        for source_band_index in range(source_band_count):
+            occupied_vertices = occupied_triangles[triangle_index, :, source_band_index]
+            for target_band_index in range(target_band_count):
+                target_vertices = target_triangles[triangle_index, :, target_band_index]
+                _static_polarization_parent_weights_numba(
+                    parent_weights,
+                    occupied_vertices,
+                    target_vertices,
+                    triangle_area,
+                    polygon_a,
+                    polygon_b,
+                    delta_vertices,
+                    sorted_order,
+                    sorted_delta,
+                    sorted_weights,
+                )
+                _accumulate_scalar_parent_weights_observables_numba(
+                    contracted,
+                    local_points,
+                    target_band_index,
+                    source_band_index,
+                    parent_weights,
+                    local_matrix_elements,
+                )
+
+    return contracted
+
+
+@njit(cache=True, parallel=True)
+def _static_polarization_observables_on_local_mesh_pair_parallel_numba(
+    local_point_indices,
+    occupied_triangles,
+    target_triangles,
+    local_matrix_elements,
+    triangle_area,
+):
+    source_band_count = occupied_triangles.shape[2]
+    target_band_count = target_triangles.shape[2]
+    channel_count = local_matrix_elements.shape[3]
+    pair_count = source_band_count * target_band_count
+    pair_observables = np.zeros((pair_count, channel_count), dtype=local_matrix_elements.dtype)
+
+    for pair_index in prange(pair_count):
+        source_band_index = pair_index // target_band_count
+        target_band_index = pair_index % target_band_count
+
+        pair_values = np.zeros(channel_count, dtype=local_matrix_elements.dtype)
+        parent_weights = np.empty(3, dtype=np.float64)
+        polygon_a = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
+        polygon_b = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
+        delta_vertices = np.empty(3, dtype=np.float64)
+        sorted_order = np.empty(3, dtype=np.int64)
+        sorted_delta = np.empty(3, dtype=np.float64)
+        sorted_weights = np.empty(3, dtype=np.float64)
+
+        for triangle_index in range(occupied_triangles.shape[0]):
+            local_points = local_point_indices[triangle_index]
+            occupied_vertices = occupied_triangles[triangle_index, :, source_band_index]
+            target_vertices = target_triangles[triangle_index, :, target_band_index]
+            _static_polarization_parent_weights_numba(
+                parent_weights,
+                occupied_vertices,
+                target_vertices,
+                triangle_area,
+                polygon_a,
+                polygon_b,
+                delta_vertices,
+                sorted_order,
+                sorted_delta,
+                sorted_weights,
+            )
+            _accumulate_scalar_parent_weights_observables_numba(
+                pair_values,
+                local_points,
+                target_band_index,
+                source_band_index,
+                parent_weights,
+                local_matrix_elements,
+            )
+
+        pair_observables[pair_index] = pair_values
+
+    return _sum_pair_scalar_observables_numba(pair_observables)
+
+
+@njit(cache=True)
 def _fermi_golden_rule_weights_on_local_mesh_numba(
     local_point_indices,
     occupied_triangles,
@@ -427,6 +534,126 @@ def _fermi_golden_rule_weights_on_local_mesh_pair_parallel_numba(
 
 
 @njit(cache=True)
+def _fermi_golden_rule_observables_on_local_mesh_numba(
+    local_point_indices,
+    occupied_triangles,
+    target_triangles,
+    sample_energies,
+    sample_energies_sorted,
+    local_matrix_elements,
+    triangle_area,
+):
+    source_band_count = occupied_triangles.shape[2]
+    target_band_count = target_triangles.shape[2]
+    energy_count = sample_energies.shape[0]
+    channel_count = local_matrix_elements.shape[3]
+    contracted = np.zeros((energy_count, channel_count), dtype=local_matrix_elements.dtype)
+    parent_weights = np.empty((energy_count, 3), dtype=np.float64)
+    polygon_a = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
+    polygon_b = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
+    delta_vertices = np.empty(3, dtype=np.float64)
+    sorted_order = np.empty(3, dtype=np.int64)
+    sorted_delta = np.empty(3, dtype=np.float64)
+    sorted_weights = np.empty(3, dtype=np.float64)
+
+    for triangle_index in range(occupied_triangles.shape[0]):
+        local_points = local_point_indices[triangle_index]
+        for source_band_index in range(source_band_count):
+            occupied_vertices = occupied_triangles[triangle_index, :, source_band_index]
+            for target_band_index in range(target_band_count):
+                target_vertices = target_triangles[triangle_index, :, target_band_index]
+                _fermi_golden_rule_parent_weights_numba(
+                    parent_weights,
+                    occupied_vertices,
+                    target_vertices,
+                    sample_energies,
+                    sample_energies_sorted,
+                    triangle_area,
+                    polygon_a,
+                    polygon_b,
+                    delta_vertices,
+                    sorted_order,
+                    sorted_delta,
+                    sorted_weights,
+                )
+                _accumulate_parent_weights_observables_numba(
+                    contracted,
+                    local_points,
+                    target_band_index,
+                    source_band_index,
+                    parent_weights,
+                    local_matrix_elements,
+                )
+
+    return contracted
+
+
+@njit(cache=True, parallel=True)
+def _fermi_golden_rule_observables_on_local_mesh_pair_parallel_numba(
+    local_point_indices,
+    occupied_triangles,
+    target_triangles,
+    sample_energies,
+    sample_energies_sorted,
+    local_matrix_elements,
+    triangle_area,
+):
+    source_band_count = occupied_triangles.shape[2]
+    target_band_count = target_triangles.shape[2]
+    energy_count = sample_energies.shape[0]
+    channel_count = local_matrix_elements.shape[3]
+    pair_count = source_band_count * target_band_count
+    pair_observables = np.zeros(
+        (pair_count, energy_count, channel_count),
+        dtype=local_matrix_elements.dtype,
+    )
+
+    for pair_index in prange(pair_count):
+        source_band_index = pair_index // target_band_count
+        target_band_index = pair_index % target_band_count
+
+        pair_values = np.zeros((energy_count, channel_count), dtype=local_matrix_elements.dtype)
+        parent_weights = np.empty((energy_count, 3), dtype=np.float64)
+        polygon_a = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
+        polygon_b = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
+        delta_vertices = np.empty(3, dtype=np.float64)
+        sorted_order = np.empty(3, dtype=np.int64)
+        sorted_delta = np.empty(3, dtype=np.float64)
+        sorted_weights = np.empty(3, dtype=np.float64)
+
+        for triangle_index in range(occupied_triangles.shape[0]):
+            local_points = local_point_indices[triangle_index]
+            occupied_vertices = occupied_triangles[triangle_index, :, source_band_index]
+            target_vertices = target_triangles[triangle_index, :, target_band_index]
+            _fermi_golden_rule_parent_weights_numba(
+                parent_weights,
+                occupied_vertices,
+                target_vertices,
+                sample_energies,
+                sample_energies_sorted,
+                triangle_area,
+                polygon_a,
+                polygon_b,
+                delta_vertices,
+                sorted_order,
+                sorted_delta,
+                sorted_weights,
+            )
+            _accumulate_parent_weights_observables_numba(
+                pair_values,
+                local_points,
+                target_band_index,
+                source_band_index,
+                parent_weights,
+                local_matrix_elements,
+            )
+
+        pair_observables[pair_index] = pair_values
+
+    return _sum_pair_observables_numba(pair_observables)
+
+
+@njit(cache=True)
 def _complex_polarization_weights_on_local_mesh_numba(
     local_point_indices,
     occupied_triangles,
@@ -536,6 +763,210 @@ def _complex_polarization_weights_on_local_mesh_pair_parallel_numba(
                     ] += parent_weights[energy_index, vertex_index]
 
     return local_weights
+
+
+@njit(cache=True)
+def _complex_polarization_observables_on_local_mesh_numba(
+    local_point_indices,
+    occupied_triangles,
+    target_triangles,
+    sample_energies,
+    local_matrix_elements,
+    triangle_area,
+):
+    source_band_count = occupied_triangles.shape[2]
+    target_band_count = target_triangles.shape[2]
+    energy_count = sample_energies.shape[0]
+    channel_count = local_matrix_elements.shape[3]
+    contracted = np.zeros((energy_count, channel_count), dtype=sample_energies.dtype)
+    parent_weights = np.empty((energy_count, 3), dtype=np.complex128)
+    polygon_a = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
+    polygon_b = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
+    delta_vertices = np.empty(3, dtype=np.float64)
+    sorted_order = np.empty(3, dtype=np.int64)
+    sorted_delta = np.empty(3, dtype=np.float64)
+    sorted_weights = np.empty(3, dtype=np.complex128)
+
+    for triangle_index in range(occupied_triangles.shape[0]):
+        local_points = local_point_indices[triangle_index]
+        for source_band_index in range(source_band_count):
+            occupied_vertices = occupied_triangles[triangle_index, :, source_band_index]
+            for target_band_index in range(target_band_count):
+                target_vertices = target_triangles[triangle_index, :, target_band_index]
+                _complex_polarization_parent_weights_numba(
+                    parent_weights,
+                    occupied_vertices,
+                    target_vertices,
+                    sample_energies,
+                    triangle_area,
+                    polygon_a,
+                    polygon_b,
+                    delta_vertices,
+                    sorted_order,
+                    sorted_delta,
+                    sorted_weights,
+                )
+                _accumulate_parent_weights_observables_numba(
+                    contracted,
+                    local_points,
+                    target_band_index,
+                    source_band_index,
+                    parent_weights,
+                    local_matrix_elements,
+                )
+
+    return contracted
+
+
+@njit(cache=True, parallel=True)
+def _complex_polarization_observables_on_local_mesh_pair_parallel_numba(
+    local_point_indices,
+    occupied_triangles,
+    target_triangles,
+    sample_energies,
+    local_matrix_elements,
+    triangle_area,
+):
+    source_band_count = occupied_triangles.shape[2]
+    target_band_count = target_triangles.shape[2]
+    energy_count = sample_energies.shape[0]
+    channel_count = local_matrix_elements.shape[3]
+    pair_count = source_band_count * target_band_count
+    pair_observables = np.zeros(
+        (pair_count, energy_count, channel_count),
+        dtype=sample_energies.dtype,
+    )
+
+    for pair_index in prange(pair_count):
+        source_band_index = pair_index // target_band_count
+        target_band_index = pair_index % target_band_count
+
+        pair_values = np.zeros((energy_count, channel_count), dtype=sample_energies.dtype)
+        parent_weights = np.empty((energy_count, 3), dtype=np.complex128)
+        polygon_a = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
+        polygon_b = np.empty((MAX_POLYGON_VERTICES, 3), dtype=np.float64)
+        delta_vertices = np.empty(3, dtype=np.float64)
+        sorted_order = np.empty(3, dtype=np.int64)
+        sorted_delta = np.empty(3, dtype=np.float64)
+        sorted_weights = np.empty(3, dtype=np.complex128)
+
+        for triangle_index in range(occupied_triangles.shape[0]):
+            local_points = local_point_indices[triangle_index]
+            occupied_vertices = occupied_triangles[triangle_index, :, source_band_index]
+            target_vertices = target_triangles[triangle_index, :, target_band_index]
+            _complex_polarization_parent_weights_numba(
+                parent_weights,
+                occupied_vertices,
+                target_vertices,
+                sample_energies,
+                triangle_area,
+                polygon_a,
+                polygon_b,
+                delta_vertices,
+                sorted_order,
+                sorted_delta,
+                sorted_weights,
+            )
+            _accumulate_parent_weights_observables_numba(
+                pair_values,
+                local_points,
+                target_band_index,
+                source_band_index,
+                parent_weights,
+                local_matrix_elements,
+            )
+
+        pair_observables[pair_index] = pair_values
+
+    return _sum_pair_observables_numba(pair_observables)
+
+
+@njit(cache=True)
+def _accumulate_scalar_parent_weights_observables_numba(
+    contracted,
+    local_points,
+    target_band_index,
+    source_band_index,
+    parent_weights,
+    local_matrix_elements,
+) -> None:
+    channel_count = local_matrix_elements.shape[3]
+
+    for vertex_index in range(local_points.shape[0]):
+        local_point_index = local_points[vertex_index]
+        weight = parent_weights[vertex_index]
+        if weight == 0.0:
+            continue
+        for channel_index in range(channel_count):
+            contracted[channel_index] += (
+                local_matrix_elements[
+                    local_point_index,
+                    target_band_index,
+                    source_band_index,
+                    channel_index,
+                ]
+                * weight
+            )
+
+
+@njit(cache=True)
+def _accumulate_parent_weights_observables_numba(
+    contracted,
+    local_points,
+    target_band_index,
+    source_band_index,
+    parent_weights,
+    local_matrix_elements,
+) -> None:
+    energy_count = parent_weights.shape[0]
+    channel_count = local_matrix_elements.shape[3]
+
+    for vertex_index in range(local_points.shape[0]):
+        local_point_index = local_points[vertex_index]
+        for energy_index in range(energy_count):
+            weight = parent_weights[energy_index, vertex_index]
+            if weight == 0.0:
+                continue
+            for channel_index in range(channel_count):
+                contracted[energy_index, channel_index] += (
+                    local_matrix_elements[
+                        local_point_index,
+                        target_band_index,
+                        source_band_index,
+                        channel_index,
+                    ]
+                    * weight
+                )
+
+
+@njit(cache=True)
+def _sum_pair_observables_numba(pair_observables):
+    energy_count = pair_observables.shape[1]
+    channel_count = pair_observables.shape[2]
+    contracted = np.zeros((energy_count, channel_count), dtype=pair_observables.dtype)
+
+    for pair_index in range(pair_observables.shape[0]):
+        for energy_index in range(energy_count):
+            for channel_index in range(channel_count):
+                contracted[energy_index, channel_index] += pair_observables[
+                    pair_index,
+                    energy_index,
+                    channel_index,
+                ]
+
+    return contracted
+
+
+@njit(cache=True)
+def _sum_pair_scalar_observables_numba(pair_observables):
+    channel_count = pair_observables.shape[1]
+    contracted = np.zeros(channel_count, dtype=pair_observables.dtype)
+
+    for pair_index in range(pair_observables.shape[0]):
+        for channel_index in range(channel_count):
+            contracted[channel_index] += pair_observables[pair_index, channel_index]
+
+    return contracted
 
 
 @njit(cache=True)

@@ -6,8 +6,14 @@ import importlib.util
 import numpy as np
 import pytest
 
+from bztetra.twod import complex_frequency_polarization_observables
 from bztetra.twod import complex_frequency_polarization_weights
+from bztetra.twod import fermi_golden_rule_observables
 from bztetra.twod import fermi_golden_rule_weights
+from bztetra.twod import prepare_response_evaluator
+from bztetra.twod import retarded_response_observables
+from bztetra.twod import static_polarization_observables
+from bztetra.twod import static_polarization_weights
 from bztetra.twod._grids import interpolated_triangle_energies
 from bztetra.twod._grids import normalize_eigenvalues
 from bztetra.twod._response_kernels import _complex_polarization_triangle_weights
@@ -225,3 +231,232 @@ def test_twod_complex_frequency_preserves_complex_energy_order() -> None:
     )
 
     np.testing.assert_allclose(shuffled, ordered[order], rtol=1.0e-12, atol=1.0e-12)
+
+
+def test_twod_fermi_golden_rule_observables_match_full_weight_sum() -> None:
+    reciprocal_vectors, occupied, target = synthetic_multiband_response_case(band_count=4)
+    energies = np.linspace(0.0, 1.1, 7, dtype=np.float64)
+
+    weights = fermi_golden_rule_weights(
+        reciprocal_vectors,
+        occupied,
+        target,
+        energies,
+        weight_grid_shape=occupied.shape[:2],
+        method="linear",
+    )
+    observed = fermi_golden_rule_observables(
+        reciprocal_vectors,
+        occupied,
+        target,
+        energies,
+        weight_grid_shape=occupied.shape[:2],
+        method="linear",
+    )
+
+    np.testing.assert_allclose(observed, weights.sum(axis=(1, 2, 3, 4)), rtol=1.0e-12, atol=1.0e-12)
+
+
+def test_twod_static_polarization_observables_match_full_weight_sum() -> None:
+    reciprocal_vectors, occupied, target = synthetic_multiband_response_case(band_count=4)
+
+    weights = static_polarization_weights(
+        reciprocal_vectors,
+        occupied,
+        target,
+        weight_grid_shape=occupied.shape[:2],
+        method="linear",
+    )
+    observed = static_polarization_observables(
+        reciprocal_vectors,
+        occupied,
+        target,
+        weight_grid_shape=occupied.shape[:2],
+        method="linear",
+    )
+
+    np.testing.assert_allclose(observed, weights.sum(axis=(0, 1, 2, 3)), rtol=1.0e-12, atol=1.0e-12)
+
+
+def test_twod_static_polarization_observables_match_explicit_channel_contraction() -> None:
+    reciprocal_vectors, occupied, target = synthetic_multiband_response_case(band_count=4)
+    rng = np.random.default_rng(1357)
+    matrix_elements = rng.normal(
+        size=(2, 3, occupied.shape[0], occupied.shape[1], target.shape[-1], occupied.shape[-1])
+    )
+
+    weights = static_polarization_weights(
+        reciprocal_vectors,
+        occupied,
+        target,
+        weight_grid_shape=occupied.shape[:2],
+        method="linear",
+    )
+    observed = static_polarization_observables(
+        reciprocal_vectors,
+        occupied,
+        target,
+        matrix_elements=matrix_elements,
+        weight_grid_shape=occupied.shape[:2],
+        method="linear",
+    )
+    expected = (weights[None, None, ...] * matrix_elements).sum(axis=(2, 3, 4, 5))
+
+    assert observed.shape == (2, 3)
+    np.testing.assert_allclose(observed, expected, rtol=1.0e-12, atol=1.0e-12)
+
+
+def test_twod_fermi_golden_rule_observables_match_explicit_channel_contraction() -> None:
+    reciprocal_vectors, occupied, target = synthetic_multiband_response_case(band_count=4)
+    energies = np.linspace(0.0, 1.1, 7, dtype=np.float64)
+    rng = np.random.default_rng(1234)
+    matrix_elements = rng.normal(
+        size=(2, 3, occupied.shape[0], occupied.shape[1], target.shape[-1], occupied.shape[-1])
+    )
+
+    weights = fermi_golden_rule_weights(
+        reciprocal_vectors,
+        occupied,
+        target,
+        energies,
+        weight_grid_shape=occupied.shape[:2],
+        method="linear",
+    )
+    observed = fermi_golden_rule_observables(
+        reciprocal_vectors,
+        occupied,
+        target,
+        energies,
+        matrix_elements=matrix_elements,
+        weight_grid_shape=occupied.shape[:2],
+        method="linear",
+    )
+    expected = (weights[:, None, None, ...] * matrix_elements[None, ...]).sum(axis=(3, 4, 5, 6))
+
+    assert observed.shape == (energies.size, 2, 3)
+    np.testing.assert_allclose(observed, expected, rtol=1.0e-12, atol=1.0e-12)
+
+
+def test_twod_complex_frequency_observables_match_explicit_interpolated_contraction() -> None:
+    reciprocal_vectors, occupied, target = synthetic_multiband_response_case(band_count=4)
+    energies = np.array([0.0 + 0.4j, 0.2 + 0.9j, -0.1 + 1.1j, 0.4 + 1.6j], dtype=np.complex128)
+    weight_grid_shape = (4, 4)
+    rng = np.random.default_rng(5678)
+    matrix_elements = (
+        rng.normal(size=(2, 2, weight_grid_shape[0], weight_grid_shape[1], target.shape[-1], occupied.shape[-1]))
+        + 1j
+        * rng.normal(
+            size=(2, 2, weight_grid_shape[0], weight_grid_shape[1], target.shape[-1], occupied.shape[-1])
+        )
+    )
+
+    weights = complex_frequency_polarization_weights(
+        reciprocal_vectors,
+        occupied,
+        target,
+        energies,
+        weight_grid_shape=weight_grid_shape,
+        method="linear",
+    )
+    observed = complex_frequency_polarization_observables(
+        reciprocal_vectors,
+        occupied,
+        target,
+        energies,
+        matrix_elements=matrix_elements,
+        weight_grid_shape=weight_grid_shape,
+        method="linear",
+    )
+    expected = (weights[:, None, None, ...] * matrix_elements[None, ...]).sum(axis=(3, 4, 5, 6))
+
+    assert observed.shape == (energies.size, 2, 2)
+    np.testing.assert_allclose(observed, expected, rtol=1.0e-12, atol=1.0e-12)
+
+
+def test_twod_prepared_response_observables_accept_local_point_matrix_elements() -> None:
+    reciprocal_vectors, occupied, target = synthetic_multiband_response_case(band_count=4)
+    energies = np.linspace(0.0, 1.1, 7, dtype=np.float64)
+    problem = prepare_response_evaluator(
+        reciprocal_vectors,
+        occupied,
+        target,
+        weight_grid_shape=occupied.shape[:2],
+        method="linear",
+    )
+    rng = np.random.default_rng(2468)
+    local_matrix_elements = rng.normal(
+        size=(2, problem.mesh.local_point_count, target.shape[-1], occupied.shape[-1])
+    )
+    grid_matrix_elements = (
+        local_matrix_elements.reshape((2, occupied.shape[1], occupied.shape[0], target.shape[-1], occupied.shape[-1]))
+        .transpose(0, 2, 1, 3, 4)
+    )
+
+    observed = problem.fermi_golden_rule_observables(
+        energies,
+        matrix_elements=local_matrix_elements,
+    )
+    weights = problem.fermi_golden_rule_weights(energies)
+    expected = (weights[:, None, ...] * grid_matrix_elements[None, ...]).sum(axis=(2, 3, 4, 5))
+
+    assert observed.shape == (energies.size, 2)
+    np.testing.assert_allclose(observed, expected, rtol=1.0e-12, atol=1.0e-12)
+
+
+def test_twod_retarded_response_observables_match_real_axis_complex_kernel() -> None:
+    reciprocal_vectors, occupied, target = synthetic_multiband_response_case(grid_shape=(12, 12), band_count=2)
+    problem = prepare_response_evaluator(
+        reciprocal_vectors,
+        occupied,
+        target,
+        weight_grid_shape=occupied.shape[:2],
+        method="linear",
+    )
+    lower_bound, upper_bound = problem.transition_energy_bounds()
+    energies = np.linspace(0.0, upper_bound + 0.35, 257, dtype=np.float64)
+
+    reconstructed = problem.retarded_response_observables(energies)
+    direct = problem.complex_frequency_polarization_observables((-energies).astype(np.complex128))
+
+    assert reconstructed.imag.shape == energies.shape
+    assert reconstructed.real.shape == energies.shape
+    np.testing.assert_allclose(
+        reconstructed.imag,
+        np.pi * problem.fermi_golden_rule_observables(energies),
+        rtol=1.0e-12,
+        atol=1.0e-12,
+    )
+    np.testing.assert_allclose(reconstructed.real[0], problem.static_polarization_observables(), rtol=1.0e-10, atol=1.0e-10)
+
+    interior = (energies > lower_bound + 0.1) & (energies < upper_bound - 0.1)
+    np.testing.assert_allclose(
+        reconstructed.real[interior],
+        direct.real[interior],
+        rtol=4.0e-3,
+        atol=4.0e-3,
+    )
+
+
+def test_twod_retarded_response_module_wrapper_matches_prepared_api() -> None:
+    reciprocal_vectors, occupied, target = synthetic_multiband_response_case(band_count=2)
+    energies = np.linspace(0.0, 2.0, 129, dtype=np.float64)
+
+    prepared = prepare_response_evaluator(
+        reciprocal_vectors,
+        occupied,
+        target,
+        weight_grid_shape=occupied.shape[:2],
+        method="linear",
+    ).retarded_response_observables(energies)
+    wrapped = retarded_response_observables(
+        reciprocal_vectors,
+        occupied,
+        target,
+        energies,
+        weight_grid_shape=occupied.shape[:2],
+        method="linear",
+    )
+
+    np.testing.assert_allclose(wrapped.omega, prepared.omega, rtol=0.0, atol=0.0)
+    np.testing.assert_allclose(wrapped.imag, prepared.imag, rtol=1.0e-12, atol=1.0e-12)
+    np.testing.assert_allclose(wrapped.real, prepared.real, rtol=1.0e-12, atol=1.0e-12)
