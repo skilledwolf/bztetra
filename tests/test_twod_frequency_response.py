@@ -587,6 +587,31 @@ def test_twod_retarded_response_observables_match_real_axis_complex_kernel() -> 
     )
 
 
+def test_twod_retarded_response_positive_start_grid_skips_static_anchor() -> None:
+    reciprocal_vectors, occupied, target = synthetic_multiband_response_case(grid_shape=(12, 12), band_count=2)
+    problem = prepare_response_evaluator(
+        reciprocal_vectors,
+        occupied,
+        target,
+        weight_grid_shape=occupied.shape[:2],
+        method="linear",
+    )
+    lower_bound, upper_bound = problem.transition_energy_bounds()
+    energies = np.linspace(max(0.05, lower_bound + 0.05), upper_bound + 0.35, 257, dtype=np.float64)
+
+    reconstructed = problem.retarded_response_observables(energies)
+    direct = problem.complex_frequency_polarization_observables((-energies).astype(np.complex128))
+
+    assert not reconstructed.diagnostics.static_anchor_applied
+    interior = (energies > lower_bound + 0.1) & (energies < upper_bound - 0.1)
+    np.testing.assert_allclose(
+        reconstructed.real[interior],
+        direct.real[interior],
+        rtol=4.0e-3,
+        atol=4.0e-3,
+    )
+
+
 def test_twod_retarded_response_module_wrapper_matches_prepared_api() -> None:
     reciprocal_vectors, occupied, target = synthetic_multiband_response_case(band_count=2)
     energies = np.linspace(0.0, 2.0, 129, dtype=np.float64)

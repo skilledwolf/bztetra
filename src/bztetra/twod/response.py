@@ -232,9 +232,11 @@ class PreparedResponseEvaluator:
             sample_energies,
             matrix_elements=matrix_elements,
         )
-        static_anchor = self.static_polarization_observables(
-            matrix_elements=matrix_elements,
-        )
+        static_anchor = None
+        if assume_hermitian or sample_energies[0] == 0.0:
+            static_anchor = self.static_polarization_observables(
+                matrix_elements=matrix_elements,
+            )
         support_bounds = self.transition_energy_bounds()
         return reconstruct_retarded_response(
             sample_energies,

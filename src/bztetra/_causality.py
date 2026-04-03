@@ -7,6 +7,10 @@ import numpy.typing as npt
 from numba import njit
 
 
+_OPERATOR_CACHE_ENTRY_LIMIT = 8
+_MAX_CACHED_OPERATOR_BYTES = 16 * 1024 * 1024
+
+
 def _reconstruct_retarded_response_impl(
     omega: npt.ArrayLike,
     imag_response: npt.ArrayLike,
@@ -14,44 +18,53 @@ def _reconstruct_retarded_response_impl(
     static_anchor: npt.ArrayLike | None,
     support_bounds: tuple[float, float] | npt.ArrayLike | None,
     assume_hermitian: bool,
-    padding_tolerance: float,
-    max_padding_factor: int,
 ) -> dict[str, object]:
-    del padding_tolerance
-    del max_padding_factor
-
     original_omega = _normalize_real_frequency_grid(omega)
     original_imag = _normalize_imaginary_response(imag_response, original_omega.size)
     anchor = _normalize_static_anchor(static_anchor, original_imag.shape[1:])
     bounds = _normalize_support_bounds(support_bounds)
 
+    if anchor is not None and not assume_hermitian and original_omega[0] > 0.0:
+        raise ValueError(
+            "non-Hermitian static_anchor requires omega[0] == 0.0 because only the returned "
+            "zero-frequency sample is pinned"
+        )
+
     working_omega = original_omega
     working_imag = original_imag
-    inserted_zero_frequency = False
-
-    if working_omega[0] > 0.0:
-        inserted_zero_frequency = True
-        zero_row = np.zeros((1,) + working_imag.shape[1:], dtype=np.float64)
-        working_omega = np.concatenate((np.array([0.0], dtype=np.float64), working_omega))
-        working_imag = np.concatenate((zero_row, working_imag), axis=0)
-
-    spacing = float(np.mean(np.diff(working_omega)))
+    output_indices = np.arange(original_omega.size, dtype=np.int64)
 
     if bounds is not None:
         lower_bound, upper_bound = bounds
-        if upper_bound > working_omega[-1] + max(spacing, 1.0) * 1.0e-9:
+        if upper_bound > working_omega[-1] + _spacing_tolerance(working_omega[-1], working_omega[-2]):
             raise ValueError(
                 "omega grid does not cover the requested support upper bound: "
                 f"{working_omega[-1]:.12g} < {upper_bound:.12g}"
             )
-        working_imag, support_was_clipped = _clip_to_support_bounds(
+        (
             working_omega,
             working_imag,
+            output_indices,
+            support_was_clipped,
+            support_boundary_insertions,
+        ) = _clip_to_support_bounds(
+            working_omega,
+            working_imag,
+            output_indices,
             lower_bound,
             upper_bound,
         )
     else:
         support_was_clipped = False
+        support_boundary_insertions = 0
+
+    inserted_zero_frequency = False
+    if working_omega[0] > 0.0:
+        inserted_zero_frequency = True
+        zero_row = np.zeros((1,) + working_imag.shape[1:], dtype=np.float64)
+        working_omega = np.concatenate((np.array([0.0], dtype=np.float64), working_omega))
+        working_imag = np.concatenate((zero_row, working_imag), axis=0)
+        output_indices = output_indices + 1
 
     zero_frequency_adjusted = False
     zero_tolerance = max(1.0, float(np.max(np.abs(working_imag)))) * 1.0e-12
@@ -64,40 +77,40 @@ def _reconstruct_retarded_response_impl(
         working_imag[0] = 0.0
         zero_frequency_adjusted = True
 
-    operator, augmented_count = _causality_operator_matrix(working_omega, assume_hermitian=assume_hermitian)
+    operator, augmented_count, cached_operator = _causality_operator_matrix(
+        working_omega,
+        assume_hermitian=assume_hermitian,
+    )
     flat_imag = np.ascontiguousarray(working_imag.reshape(working_imag.shape[0], -1))
     real_flat = operator @ flat_imag
 
+    static_anchor_applied = False
     if anchor is not None:
         anchor_flat = np.asarray(anchor, dtype=np.float64).reshape(-1)
         if assume_hermitian:
             real_flat += (anchor_flat - real_flat[0])[None, :]
+            static_anchor_applied = True
         else:
             real_flat[0] = anchor_flat
+            static_anchor_applied = True
 
     working_real = real_flat.reshape(working_imag.shape)
-
-    if inserted_zero_frequency:
-        imag_out = working_imag[1:]
-        real_out = working_real[1:]
-    else:
-        imag_out = working_imag
-        real_out = working_real
+    spacing = np.diff(working_omega)
 
     return {
         "omega": original_omega,
-        "imag": imag_out,
-        "real": real_out,
+        "imag": working_imag[output_indices],
+        "real": working_real[output_indices],
         "support_bounds": bounds,
-        "uniform_spacing": spacing,
-        "resampled_to_uniform": False,
+        "minimum_spacing": float(np.min(spacing)),
+        "maximum_spacing": float(np.max(spacing)),
         "inserted_zero_frequency": inserted_zero_frequency,
         "zero_frequency_adjusted": zero_frequency_adjusted,
         "support_was_clipped": support_was_clipped,
-        "padding_factor": 1,
-        "padded_point_count": augmented_count,
-        "estimated_absolute_error": 0.0,
-        "estimated_relative_error": 0.0,
+        "support_boundary_insertions": support_boundary_insertions,
+        "static_anchor_applied": static_anchor_applied,
+        "augmented_point_count": augmented_count,
+        "cached_operator": cached_operator,
     }
 
 
@@ -178,31 +191,104 @@ def _normalize_support_bounds(
 def _clip_to_support_bounds(
     omega: npt.NDArray[np.float64],
     imag_response: npt.NDArray[np.float64],
+    output_indices: npt.NDArray[np.int64],
     lower_bound: float,
     upper_bound: float,
-) -> tuple[npt.NDArray[np.float64], bool]:
-    clipped = imag_response
-    mask = (omega < lower_bound) | (omega > upper_bound)
-    if not np.any(mask):
-        return clipped, False
-    clipped = clipped.copy()
-    clipped[mask] = 0.0
-    return clipped, True
+) -> tuple[
+    npt.NDArray[np.float64],
+    npt.NDArray[np.float64],
+    npt.NDArray[np.int64],
+    bool,
+    int,
+]:
+    clipped_omega = omega
+    clipped_imag = imag_response
+    clipped_indices = output_indices
+    support_was_clipped = False
+    boundary_insertions = 0
+
+    if lower_bound > clipped_omega[0]:
+        clipped_omega, clipped_imag, clipped_indices, inserted = _insert_support_boundary(
+            clipped_omega,
+            clipped_imag,
+            clipped_indices,
+            lower_bound,
+        )
+        support_was_clipped = support_was_clipped or inserted
+        boundary_insertions += int(inserted)
+
+    if upper_bound < clipped_omega[-1]:
+        clipped_omega, clipped_imag, clipped_indices, inserted = _insert_support_boundary(
+            clipped_omega,
+            clipped_imag,
+            clipped_indices,
+            upper_bound,
+        )
+        support_was_clipped = support_was_clipped or inserted
+        boundary_insertions += int(inserted)
+
+    mask = (clipped_omega < lower_bound) | (clipped_omega > upper_bound)
+    if np.any(mask):
+        clipped_imag = clipped_imag.copy()
+        clipped_imag[mask] = 0.0
+        support_was_clipped = True
+
+    return clipped_omega, clipped_imag, clipped_indices, support_was_clipped, boundary_insertions
+
+
+def _insert_support_boundary(
+    omega: npt.NDArray[np.float64],
+    imag_response: npt.NDArray[np.float64],
+    output_indices: npt.NDArray[np.int64],
+    boundary: float,
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.int64], bool]:
+    insertion_index = int(np.searchsorted(omega, boundary, side="left"))
+    if insertion_index == 0 or insertion_index == omega.size:
+        return omega, imag_response, output_indices, False
+
+    if _matches_sample(omega[insertion_index], boundary) or _matches_sample(omega[insertion_index - 1], boundary):
+        return omega, imag_response, output_indices, False
+
+    boundary_row = np.zeros((1,) + imag_response.shape[1:], dtype=np.float64)
+    augmented_omega = np.insert(omega, insertion_index, boundary)
+    augmented_imag = np.concatenate(
+        (imag_response[:insertion_index], boundary_row, imag_response[insertion_index:]),
+        axis=0,
+    )
+    augmented_indices = np.where(output_indices >= insertion_index, output_indices + 1, output_indices)
+    return augmented_omega, augmented_imag, augmented_indices, True
+
+
+def _matches_sample(sample: float, boundary: float) -> bool:
+    tolerance = _spacing_tolerance(sample, boundary)
+    return abs(sample - boundary) <= tolerance
+
+
+def _spacing_tolerance(left_value: float, right_value: float) -> float:
+    scale = max(1.0, abs(left_value), abs(right_value))
+    return 1.0e-12 * scale
 
 
 def _causality_operator_matrix(
     positive_omega: npt.NDArray[np.float64],
     *,
     assume_hermitian: bool,
-) -> tuple[npt.NDArray[np.float64], int]:
-    return _cached_causality_operator_matrix(
+) -> tuple[npt.NDArray[np.float64], int, bool]:
+    operator_bytes = positive_omega.size * positive_omega.size * np.dtype(np.float64).itemsize
+    if operator_bytes > _MAX_CACHED_OPERATOR_BYTES:
+        operator = _build_causality_operator_matrix_numba(positive_omega, assume_hermitian)
+        operator.setflags(write=False)
+        return operator, 2 * positive_omega.size + 1, False
+
+    operator, augmented_count = _cached_causality_operator_matrix(
         positive_omega.tobytes(),
         positive_omega.size,
         assume_hermitian,
     )
+    return operator, augmented_count, True
 
 
-@lru_cache(maxsize=16)
+@lru_cache(maxsize=_OPERATOR_CACHE_ENTRY_LIMIT)
 def _cached_causality_operator_matrix(
     omega_bytes: bytes,
     omega_count: int,

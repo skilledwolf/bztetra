@@ -11,15 +11,15 @@ from ._causality import _reconstruct_retarded_response_impl
 @dataclass(slots=True)
 class KramersKronigDiagnostics:
     support_bounds: tuple[float, float] | None
-    uniform_spacing: float
-    resampled_to_uniform: bool
+    minimum_spacing: float
+    maximum_spacing: float
     inserted_zero_frequency: bool
     zero_frequency_adjusted: bool
     support_was_clipped: bool
-    padding_factor: int
-    padded_point_count: int
-    estimated_absolute_error: float
-    estimated_relative_error: float
+    support_boundary_insertions: int
+    static_anchor_applied: bool
+    augmented_point_count: int
+    cached_operator: bool
 
 
 @dataclass(slots=True)
@@ -39,8 +39,6 @@ def reconstruct_retarded_response(
     static_anchor: npt.ArrayLike | None = None,
     support_bounds: tuple[float, float] | npt.ArrayLike | None = None,
     assume_hermitian: bool = False,
-    padding_tolerance: float = 5.0e-7,
-    max_padding_factor: int = 32,
 ) -> RetardedResponse:
     """Reconstruct a retarded response from its imaginary part on ω >= 0.
 
@@ -48,10 +46,11 @@ def reconstruct_retarded_response(
     which matches the occupied-to-empty response returned by the current
     `fermi_golden_rule_*` APIs. Set `assume_hermitian=True` to instead extend
     the imaginary part as an odd function, which is appropriate for full
-    Hermitian self-responses. A static anchor can be supplied to fix the
-    zero-frequency constant, and compact support bounds can be used to clip the
-    high-frequency tail automatically before applying the Kramers-Kronig
-    transform.
+    Hermitian self-responses. For the default non-Hermitian branch, a
+    `static_anchor` is only valid when `omega[0] == 0.0`, because only the
+    returned zero-frequency point is pinned. Compact support bounds clip the
+    spectrum on the working piecewise-linear grid, inserting zero-valued edge
+    samples when a support boundary falls between two requested frequencies.
     """
 
     result = _reconstruct_retarded_response_impl(
@@ -60,20 +59,18 @@ def reconstruct_retarded_response(
         static_anchor=static_anchor,
         support_bounds=support_bounds,
         assume_hermitian=assume_hermitian,
-        padding_tolerance=padding_tolerance,
-        max_padding_factor=max_padding_factor,
     )
     diagnostics = KramersKronigDiagnostics(
         support_bounds=result["support_bounds"],
-        uniform_spacing=float(result["uniform_spacing"]),
-        resampled_to_uniform=bool(result["resampled_to_uniform"]),
+        minimum_spacing=float(result["minimum_spacing"]),
+        maximum_spacing=float(result["maximum_spacing"]),
         inserted_zero_frequency=bool(result["inserted_zero_frequency"]),
         zero_frequency_adjusted=bool(result["zero_frequency_adjusted"]),
         support_was_clipped=bool(result["support_was_clipped"]),
-        padding_factor=int(result["padding_factor"]),
-        padded_point_count=int(result["padded_point_count"]),
-        estimated_absolute_error=float(result["estimated_absolute_error"]),
-        estimated_relative_error=float(result["estimated_relative_error"]),
+        support_boundary_insertions=int(result["support_boundary_insertions"]),
+        static_anchor_applied=bool(result["static_anchor_applied"]),
+        augmented_point_count=int(result["augmented_point_count"]),
+        cached_operator=bool(result["cached_operator"]),
     )
     return RetardedResponse(
         omega=np.asarray(result["omega"], dtype=np.float64),
