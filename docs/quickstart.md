@@ -22,6 +22,9 @@ third axis with `nz=1`; see [2D Triangle Method](two_dimensional_plan.md).
 4. Brillouin-zone integrals come from summing over the k-grid axes and
    multiplying by `np.linalg.det(bvec)` for a right-handed basis.
 
+All of those grids are periodic reciprocal-space meshes. `bztetra` is not a
+finite-box or open-boundary solver.
+
 `method="optimized"` is the default and the right choice unless you are
 reproducing reference linear-tetrahedron results.
 

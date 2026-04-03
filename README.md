@@ -19,6 +19,9 @@ occupation, DOS, and response families. Do not fake a flat third axis with
 `nz=1`; see
 [docs/two_dimensional_plan.md](docs/two_dimensional_plan.md).
 
+The integration meshes are periodic Brillouin-zone meshes. Open-boundary or
+finite-box boundary conditions are not supported by the current API.
+
 Author: Tobias Wolf ([@skilledwolf](https://github.com/skilledwolf))
 
 > [!IMPORTANT]
@@ -111,6 +114,10 @@ For genuinely 2D problems, switch namespaces and use `bztetra.twod`.
 DOS, overlap, Lindhard-style polarization, and real- or complex-frequency
 response, but on `(nx, ny, nbands)` arrays with Brillouin-zone **area**
 normalization and the linear triangle method.
+
+The 2D free-electron / 2DEG review scripts therefore sample a continuum
+dispersion on a periodic mesh. They are useful kernel benchmarks and periodic-
+box review calculations, not true open-boundary continuum simulations.
 
 Start with [docs/two_dimensional_plan.md](docs/two_dimensional_plan.md) for
 the current 2D surface, then run one of the plot-backed example scripts:

@@ -7,6 +7,9 @@ The top-level API is 3D-only, while the parallel 2D linear triangle-method
 surface now lives under `bztetra.twod`; see
 [2D Triangle Method](two_dimensional_plan.md).
 
+All integration meshes are periodic reciprocal-space meshes. The current
+package does not support open-boundary or finite-box boundary conditions.
+
 !!! warning "Public preview status"
 
     `bztetra` is in its public `0.x` preview series. Validate important

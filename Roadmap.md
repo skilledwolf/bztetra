@@ -17,12 +17,12 @@
 - [x] Add a direct `reconstruct_retarded_response(...)` usage example and practical caveats.
 - [x] Re-check API/examples/docstrings for consistency and record final status here.
 
-## Kramers-Kronig Documentation
+## Publication Readiness
 
-- [ ] Audit the current KK docs and identify mismatches or missing caveats.
-- [ ] Add a dedicated physics/docs explanation of branch conventions, anchor rules, support clipping, and diagnostics.
-- [ ] Add a direct `reconstruct_retarded_response(...)` example alongside the 2D convenience wrappers.
-- [ ] Re-check the docs against the shipped API and record final status here.
+- [x] State clearly that the mesh topology is periodic-only and that open-boundary conditions are not supported.
+- [x] Mark the free-electron / 2DEG review scripts as periodic-box approximations rather than true open-boundary calculations.
+- [x] Run the full repository test suite after the publish-readiness docs patch.
+- [x] Record final publication-readiness status here.
 
 ## Progress Notes
 
@@ -32,4 +32,6 @@
 - 2026-04-03: Validation passed for `38` targeted tests plus the 1D and full-q-grid retarded-response examples.
 - 2026-04-03: Started a documentation hardening pass for the KK / causality layer.
 - 2026-04-03: Expanded the KK docs in physics/examples/API text and public docstrings to match the shipped branch, anchor, support, and diagnostics behavior.
-- 2026-04-03: Started a KK documentation hardening pass for publication-quality clarity.
+- 2026-04-03: Started a publish-readiness pass for boundary-condition and example-interpretation docs.
+- 2026-04-03: Clarified the periodic-only mesh model in the README and docs, and marked the free-electron / 2DEG examples as periodic-box approximations.
+- 2026-04-03: Full validation passed with `128 passed, 4 skipped`, and `mkdocs build` completed successfully.

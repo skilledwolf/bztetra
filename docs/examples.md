@@ -174,6 +174,11 @@ triangle response kernels:
 - `python examples/plot_twod_2deg_spectral_function.py`
 - `python examples/plot_twod_2deg_retarded_response.py`
 
+These free-electron / 2DEG review scripts use continuum dispersions sampled on
+the same periodic mesh topology used everywhere else in `bztetra.twod`. They
+should therefore be interpreted as periodic-box review calculations and kernel
+benchmarks, not as true open-boundary continuum simulations.
+
 <figure markdown>
   ![2D free-electron phase-space overlap](assets/plots/twod_phase_space_overlap.png)
   <figcaption>

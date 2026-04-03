@@ -9,6 +9,10 @@ compactness. The current 2D triangle implementation mirrors the same response
 objects with Brillouin-zone area normalization instead of 3D volume
 normalization.
 
+All meshes in `bztetra` are periodic reciprocal-space meshes. The package
+computes Brillouin-zone integrals; it does not currently support open-boundary
+or finite-box boundary conditions.
+
 ## One Core Idea
 
 `bztetra` does **not** try to hide the k-resolved weight field from you. The
@@ -115,6 +119,10 @@ f\!\left(\varepsilon_n(\mathbf{k})\right)
 For simple symmetric free-electron review plots, the full Lindhard curve is
 the sum of the occupied-to-empty and empty-to-occupied channels, so examples
 at nonzero \(q\) often multiply the kernel by 2.
+
+When the examples use a continuum free-electron or 2DEG dispersion on a finite
+regular mesh, that should be read as a periodic-box approximation to the
+continuum problem rather than a true open-boundary simulation.
 
 All three static response routines return arrays of shape
 
