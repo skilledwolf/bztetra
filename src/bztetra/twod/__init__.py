@@ -14,11 +14,15 @@ from .response import complex_frequency_polarization_weights
 from .response import complex_frequency_polarization_observables
 from .response import fermi_golden_rule_weights
 from .response import fermi_golden_rule_observables
+from .response import fermi_golden_rule_observables_batch
 from .response import nesting_function_weights
 from .response import phase_space_overlap_weights
 from .response import prepare_response_evaluator
+from .response import prepare_response_sweep_evaluator
 from .response import PreparedResponseEvaluator
+from .response import PreparedResponseSweepEvaluator
 from .response import retarded_response_observables
+from .response import retarded_response_observables_batch
 from .response import static_polarization_observables
 from .response import static_polarization_weights
 
@@ -31,14 +35,18 @@ __all__ = [
     "density_of_states_weights",
     "FermiEnergySolution",
     "fermi_golden_rule_observables",
+    "fermi_golden_rule_observables_batch",
     "fermi_golden_rule_weights",
     "integrated_density_of_states_weights",
     "nesting_function_weights",
     "occupation_weights",
     "phase_space_overlap_weights",
     "prepare_response_evaluator",
+    "prepare_response_sweep_evaluator",
     "PreparedResponseEvaluator",
+    "PreparedResponseSweepEvaluator",
     "retarded_response_observables",
+    "retarded_response_observables_batch",
     "solve_fermi_energy",
     "static_polarization_observables",
     "static_polarization_weights",

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
 import numpy as np
@@ -242,6 +243,181 @@ class PreparedResponseEvaluator:
             support_bounds=support_bounds if support_bounds[1] > support_bounds[0] else None,
             assume_hermitian=assume_hermitian,
         )
+
+
+@dataclass(slots=True)
+class PreparedResponseSweepEvaluator:
+    """Reusable 2D response setup for many targets on the same source mesh.
+
+    This evaluator caches the integration mesh and occupied-band triangle
+    energies once, then reuses them across a batch of target-band response
+    evaluations such as dense `q` sweeps.
+    """
+
+    mesh: TriangleIntegrationMesh
+    occupied_triangles: FloatArray
+
+    def prepare_target_evaluator(self, target_eigenvalues: npt.ArrayLike) -> PreparedResponseEvaluator:
+        """Prepare a single source-to-target evaluator that reuses cached source state."""
+
+        target_flat, target_grid = normalize_eigenvalues(target_eigenvalues)
+        if target_grid != self.mesh.energy_grid_shape:
+            raise ValueError(
+                "target_eigenvalues must share the prepared 2D energy-grid shape, "
+                f"got {target_grid!r} and expected {self.mesh.energy_grid_shape!r}"
+            )
+        target_triangles = interpolated_triangle_energies(self.mesh, target_flat)
+        return PreparedResponseEvaluator(
+            mesh=self.mesh,
+            occupied_triangles=self.occupied_triangles,
+            target_triangles=target_triangles,
+        )
+
+    def static_polarization_observables_batch(
+        self,
+        target_eigenvalues_batch: npt.ArrayLike | list[npt.ArrayLike] | tuple[npt.ArrayLike, ...],
+        *,
+        matrix_elements: npt.ArrayLike | list[npt.ArrayLike] | tuple[npt.ArrayLike, ...] | None = None,
+        workers: int = 1,
+    ) -> npt.NDArray[np.generic]:
+        """Evaluate contracted static observables for many targets."""
+
+        return np.stack(
+            self._run_target_batch(
+                target_eigenvalues_batch,
+                workers=workers,
+                matrix_elements=matrix_elements,
+                evaluate=lambda evaluator, target_matrix_elements: evaluator.static_polarization_observables(
+                    matrix_elements=target_matrix_elements,
+                ),
+            ),
+            axis=0,
+        )
+
+    def fermi_golden_rule_observables_batch(
+        self,
+        target_eigenvalues_batch: npt.ArrayLike | list[npt.ArrayLike] | tuple[npt.ArrayLike, ...],
+        energies: npt.ArrayLike,
+        *,
+        matrix_elements: npt.ArrayLike | list[npt.ArrayLike] | tuple[npt.ArrayLike, ...] | None = None,
+        workers: int = 1,
+    ) -> npt.NDArray[np.generic]:
+        """Evaluate contracted real-frequency observables for many targets."""
+
+        sample_energies = normalize_energy_samples(energies)
+        return np.stack(
+            self._run_target_batch(
+                target_eigenvalues_batch,
+                workers=workers,
+                matrix_elements=matrix_elements,
+                evaluate=lambda evaluator, target_matrix_elements: evaluator.fermi_golden_rule_observables(
+                    sample_energies,
+                    matrix_elements=target_matrix_elements,
+                ),
+            ),
+            axis=0,
+        )
+
+    def complex_frequency_polarization_observables_batch(
+        self,
+        target_eigenvalues_batch: npt.ArrayLike | list[npt.ArrayLike] | tuple[npt.ArrayLike, ...],
+        energies: npt.ArrayLike,
+        *,
+        matrix_elements: npt.ArrayLike | list[npt.ArrayLike] | tuple[npt.ArrayLike, ...] | None = None,
+        workers: int = 1,
+    ) -> ComplexArray:
+        """Evaluate contracted complex-frequency observables for many targets."""
+
+        sample_energies = normalize_complex_energy_samples(energies)
+        return np.stack(
+            self._run_target_batch(
+                target_eigenvalues_batch,
+                workers=workers,
+                matrix_elements=matrix_elements,
+                evaluate=lambda evaluator, target_matrix_elements: evaluator.complex_frequency_polarization_observables(
+                    sample_energies,
+                    matrix_elements=target_matrix_elements,
+                ),
+            ),
+            axis=0,
+        )
+
+    def retarded_response_observables_batch(
+        self,
+        target_eigenvalues_batch: npt.ArrayLike | list[npt.ArrayLike] | tuple[npt.ArrayLike, ...],
+        energies: npt.ArrayLike,
+        *,
+        matrix_elements: npt.ArrayLike | list[npt.ArrayLike] | tuple[npt.ArrayLike, ...] | None = None,
+        workers: int = 1,
+        assume_hermitian: bool = False,
+    ) -> tuple[RetardedResponse, ...]:
+        """Reconstruct retarded responses for many targets."""
+
+        sample_energies = normalize_energy_samples(energies)
+        return self._run_target_batch(
+            target_eigenvalues_batch,
+            workers=workers,
+            matrix_elements=matrix_elements,
+            evaluate=lambda evaluator, target_matrix_elements: evaluator.retarded_response_observables(
+                sample_energies,
+                matrix_elements=target_matrix_elements,
+                assume_hermitian=assume_hermitian,
+            ),
+        )
+
+    def _run_target_batch(
+        self,
+        target_eigenvalues_batch: npt.ArrayLike | list[npt.ArrayLike] | tuple[npt.ArrayLike, ...],
+        *,
+        workers: int,
+        matrix_elements: npt.ArrayLike | list[npt.ArrayLike] | tuple[npt.ArrayLike, ...] | None,
+        evaluate,
+    ) -> tuple[object, ...]:
+        target_batch = _normalize_target_eigenvalue_batch(target_eigenvalues_batch)
+        matrix_element_batch = _normalize_batched_optional_inputs(matrix_elements, len(target_batch))
+        worker_count = _normalize_worker_count(workers)
+
+        if worker_count == 1 or len(target_batch) == 1:
+            return tuple(
+                evaluate(self.prepare_target_evaluator(target_values), target_matrix_elements)
+                for target_values, target_matrix_elements in zip(target_batch, matrix_element_batch, strict=True)
+            )
+
+        with ThreadPoolExecutor(max_workers=worker_count) as executor:
+            futures = [
+                executor.submit(
+                    _evaluate_sweep_target,
+                    self,
+                    target_values,
+                    target_matrix_elements,
+                    evaluate,
+                )
+                for target_values, target_matrix_elements in zip(target_batch, matrix_element_batch, strict=True)
+            ]
+            return tuple(future.result() for future in futures)
+
+
+def prepare_response_sweep_evaluator(
+    reciprocal_vectors: npt.ArrayLike,
+    occupied_eigenvalues: npt.ArrayLike,
+    *,
+    weight_grid_shape: tuple[int, int] | None = None,
+    method: int | TriangleMethod = "linear",
+) -> PreparedResponseSweepEvaluator:
+    """Prepare reusable 2D source-state response data for many target sweeps."""
+
+    occupied_flat, occupied_grid = normalize_eigenvalues(occupied_eigenvalues)
+    mesh = cached_integration_mesh(
+        reciprocal_vectors,
+        occupied_grid,
+        weight_grid_shape=weight_grid_shape,
+        method=method,
+    )
+    occupied_triangles = interpolated_triangle_energies(mesh, occupied_flat)
+    return PreparedResponseSweepEvaluator(
+        mesh=mesh,
+        occupied_triangles=occupied_triangles,
+    )
 
 
 def prepare_response_evaluator(
@@ -516,6 +692,62 @@ def retarded_response_observables(
     return evaluator.retarded_response_observables(
         energies,
         matrix_elements=matrix_elements,
+        assume_hermitian=assume_hermitian,
+    )
+
+
+def fermi_golden_rule_observables_batch(
+    reciprocal_vectors: npt.ArrayLike,
+    occupied_eigenvalues: npt.ArrayLike,
+    target_eigenvalues_batch: npt.ArrayLike | list[npt.ArrayLike] | tuple[npt.ArrayLike, ...],
+    energies: npt.ArrayLike,
+    *,
+    matrix_elements: npt.ArrayLike | list[npt.ArrayLike] | tuple[npt.ArrayLike, ...] | None = None,
+    weight_grid_shape: tuple[int, int] | None = None,
+    method: int | TriangleMethod = "linear",
+    workers: int = 1,
+) -> npt.NDArray[np.generic]:
+    """Evaluate contracted real-frequency observables for many targets."""
+
+    sweep = prepare_response_sweep_evaluator(
+        reciprocal_vectors,
+        occupied_eigenvalues,
+        weight_grid_shape=weight_grid_shape,
+        method=method,
+    )
+    return sweep.fermi_golden_rule_observables_batch(
+        target_eigenvalues_batch,
+        energies,
+        matrix_elements=matrix_elements,
+        workers=workers,
+    )
+
+
+def retarded_response_observables_batch(
+    reciprocal_vectors: npt.ArrayLike,
+    occupied_eigenvalues: npt.ArrayLike,
+    target_eigenvalues_batch: npt.ArrayLike | list[npt.ArrayLike] | tuple[npt.ArrayLike, ...],
+    energies: npt.ArrayLike,
+    *,
+    matrix_elements: npt.ArrayLike | list[npt.ArrayLike] | tuple[npt.ArrayLike, ...] | None = None,
+    weight_grid_shape: tuple[int, int] | None = None,
+    method: int | TriangleMethod = "linear",
+    workers: int = 1,
+    assume_hermitian: bool = False,
+) -> tuple[RetardedResponse, ...]:
+    """Reconstruct retarded responses for many targets."""
+
+    sweep = prepare_response_sweep_evaluator(
+        reciprocal_vectors,
+        occupied_eigenvalues,
+        weight_grid_shape=weight_grid_shape,
+        method=method,
+    )
+    return sweep.retarded_response_observables_batch(
+        target_eigenvalues_batch,
+        energies,
+        matrix_elements=matrix_elements,
+        workers=workers,
         assume_hermitian=assume_hermitian,
     )
 
@@ -832,6 +1064,59 @@ def _reshape_static_contracted_observables(
     if not channel_shape:
         return values[0]
     return values.reshape(channel_shape)
+
+
+def _normalize_target_eigenvalue_batch(
+    target_eigenvalues_batch: npt.ArrayLike | list[npt.ArrayLike] | tuple[npt.ArrayLike, ...],
+) -> tuple[npt.ArrayLike, ...]:
+    if isinstance(target_eigenvalues_batch, np.ndarray):
+        values = np.asarray(target_eigenvalues_batch, dtype=np.float64)
+        if values.ndim != 4:
+            raise ValueError(
+                "target_eigenvalues_batch must have shape (nq, nx, ny, nbands) "
+                "or be a sequence of (nx, ny, nbands) arrays"
+            )
+        return tuple(values[index] for index in range(values.shape[0]))
+
+    batch = tuple(target_eigenvalues_batch)
+    if not batch:
+        raise ValueError("target_eigenvalues_batch must contain at least one target")
+    return batch
+
+
+def _normalize_batched_optional_inputs(
+    values: npt.ArrayLike | list[npt.ArrayLike] | tuple[npt.ArrayLike, ...] | None,
+    batch_count: int,
+) -> tuple[npt.ArrayLike | None, ...]:
+    if values is None:
+        return (None,) * batch_count
+    if isinstance(values, (list, tuple)):
+        if len(values) != batch_count:
+            raise ValueError(
+                "per-target batch input must have the same length as target_eigenvalues_batch, "
+                f"got {len(values)} and {batch_count}"
+            )
+        return tuple(values)
+    return (values,) * batch_count
+
+
+def _normalize_worker_count(workers: int) -> int:
+    worker_count = int(workers)
+    if worker_count < 1:
+        raise ValueError("workers must be at least 1")
+    return worker_count
+
+
+def _evaluate_sweep_target(
+    sweep: PreparedResponseSweepEvaluator,
+    target_eigenvalues: npt.ArrayLike,
+    matrix_elements: npt.ArrayLike | None,
+    evaluate,
+):
+    return evaluate(
+        sweep.prepare_target_evaluator(target_eigenvalues),
+        matrix_elements,
+    )
 
 
 @njit(cache=True)

@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+from functools import lru_cache
+
 import numpy as np
 import numpy.typing as npt
+from numba import njit
 
 
 def _reconstruct_retarded_response_impl(
@@ -14,6 +17,9 @@ def _reconstruct_retarded_response_impl(
     padding_tolerance: float,
     max_padding_factor: int,
 ) -> dict[str, object]:
+    del padding_tolerance
+    del max_padding_factor
+
     original_omega = _normalize_real_frequency_grid(omega)
     original_imag = _normalize_imaginary_response(imag_response, original_omega.size)
     anchor = _normalize_static_anchor(static_anchor, original_imag.shape[1:])
@@ -29,7 +35,6 @@ def _reconstruct_retarded_response_impl(
         working_omega = np.concatenate((np.array([0.0], dtype=np.float64), working_omega))
         working_imag = np.concatenate((zero_row, working_imag), axis=0)
 
-    resampled_to_uniform = False
     spacing = float(np.mean(np.diff(working_omega)))
 
     if bounds is not None:
@@ -59,15 +64,18 @@ def _reconstruct_retarded_response_impl(
         working_imag[0] = 0.0
         zero_frequency_adjusted = True
 
-    working_real, padded_point_count = _piecewise_linear_principal_value_reconstruction(
-        working_omega,
-        working_imag,
-        static_anchor=anchor,
-        assume_hermitian=assume_hermitian,
-    )
-    padding_factor = 1
-    abs_error = 0.0
-    rel_error = 0.0
+    operator, augmented_count = _causality_operator_matrix(working_omega, assume_hermitian=assume_hermitian)
+    flat_imag = np.ascontiguousarray(working_imag.reshape(working_imag.shape[0], -1))
+    real_flat = operator @ flat_imag
+
+    if anchor is not None:
+        anchor_flat = np.asarray(anchor, dtype=np.float64).reshape(-1)
+        if assume_hermitian:
+            real_flat += (anchor_flat - real_flat[0])[None, :]
+        else:
+            real_flat[0] = anchor_flat
+
+    working_real = real_flat.reshape(working_imag.shape)
 
     if inserted_zero_frequency:
         imag_out = working_imag[1:]
@@ -82,14 +90,14 @@ def _reconstruct_retarded_response_impl(
         "real": real_out,
         "support_bounds": bounds,
         "uniform_spacing": spacing,
-        "resampled_to_uniform": resampled_to_uniform,
+        "resampled_to_uniform": False,
         "inserted_zero_frequency": inserted_zero_frequency,
         "zero_frequency_adjusted": zero_frequency_adjusted,
         "support_was_clipped": support_was_clipped,
-        "padding_factor": padding_factor,
-        "padded_point_count": padded_point_count,
-        "estimated_absolute_error": abs_error,
-        "estimated_relative_error": rel_error,
+        "padding_factor": 1,
+        "padded_point_count": augmented_count,
+        "estimated_absolute_error": 0.0,
+        "estimated_relative_error": 0.0,
     }
 
 
@@ -182,43 +190,42 @@ def _clip_to_support_bounds(
     return clipped, True
 
 
-def _resample_axis0(
-    source_x: npt.NDArray[np.float64],
-    source_y: npt.NDArray[np.float64],
-    target_x: npt.NDArray[np.float64],
-) -> npt.NDArray[np.float64]:
-    flat_source = np.ascontiguousarray(source_y.reshape(source_y.shape[0], -1))
-    flat_target = np.empty((target_x.size, flat_source.shape[1]), dtype=np.float64)
-
-    for column_index in range(flat_source.shape[1]):
-        flat_target[:, column_index] = np.interp(target_x, source_x, flat_source[:, column_index])
-
-    return flat_target.reshape((target_x.size,) + source_y.shape[1:])
-
-
-def _piecewise_linear_principal_value_reconstruction(
+def _causality_operator_matrix(
     positive_omega: npt.NDArray[np.float64],
-    positive_imag: npt.NDArray[np.float64],
     *,
-    static_anchor: npt.NDArray[np.float64] | None,
     assume_hermitian: bool,
 ) -> tuple[npt.NDArray[np.float64], int]:
-    positive_count = positive_imag.shape[0]
-    flat_imag = np.ascontiguousarray(positive_imag.reshape(positive_count, -1))
-    augmented_omega, symmetric_extension = _build_augmented_symmetric_extension(
-        positive_omega,
-        flat_imag,
-        assume_hermitian=assume_hermitian,
+    return _cached_causality_operator_matrix(
+        positive_omega.tobytes(),
+        positive_omega.size,
+        assume_hermitian,
     )
-    augmented_count = augmented_omega.size
-    positive_start = positive_count
-    channel_count = flat_imag.shape[1]
-    real_part = np.zeros((positive_count, channel_count), dtype=np.float64)
+
+
+@lru_cache(maxsize=16)
+def _cached_causality_operator_matrix(
+    omega_bytes: bytes,
+    omega_count: int,
+    assume_hermitian: bool,
+) -> tuple[npt.NDArray[np.float64], int]:
+    positive_omega = np.frombuffer(omega_bytes, dtype=np.float64, count=omega_count).copy()
+    operator = _build_causality_operator_matrix_numba(positive_omega, assume_hermitian)
+    operator.setflags(write=False)
+    return operator, 2 * omega_count + 1
+
+
+@njit(cache=True)
+def _build_causality_operator_matrix_numba(positive_omega, assume_hermitian):
+    positive_count = positive_omega.shape[0]
+    augmented_omega = _build_augmented_omega_numba(positive_omega)
+    augmented_count = augmented_omega.shape[0]
+    operator = np.zeros((positive_count, positive_count), dtype=np.float64)
+    coefficients = np.empty(augmented_count, dtype=np.float64)
 
     for output_index in range(positive_count):
-        full_index = positive_start + output_index
+        coefficients[:] = 0.0
+        full_index = positive_count + output_index
         omega_value = augmented_omega[full_index]
-        interval_sum = np.zeros(channel_count, dtype=np.float64)
 
         for interval_index in range(augmented_count - 1):
             if interval_index == full_index - 1 or interval_index == full_index:
@@ -226,80 +233,38 @@ def _piecewise_linear_principal_value_reconstruction(
             x0 = augmented_omega[interval_index]
             x1 = augmented_omega[interval_index + 1]
             width = x1 - x0
-            slope = (symmetric_extension[interval_index + 1] - symmetric_extension[interval_index]) / width
-            intercept = symmetric_extension[interval_index] - slope * x0
-            interval_sum += slope * width + (slope * omega_value + intercept) * np.log(
-                abs((x1 - omega_value) / (x0 - omega_value))
-            )
+            log_term = np.log(abs((x1 - omega_value) / (x0 - omega_value)))
+            coefficients[interval_index] += ((x1 - omega_value) / width) * log_term - 1.0
+            coefficients[interval_index + 1] += 1.0 + ((omega_value - x0) / width) * log_term
 
-        if 0 < full_index < augmented_count - 1:
-            left_width = omega_value - augmented_omega[full_index - 1]
-            right_width = augmented_omega[full_index + 1] - omega_value
-            center_value = symmetric_extension[full_index]
-            left_slope = (center_value - symmetric_extension[full_index - 1]) / left_width
-            right_slope = (symmetric_extension[full_index + 1] - center_value) / right_width
-            interval_sum += center_value * np.log(right_width / left_width)
-            interval_sum += left_slope * left_width + right_slope * right_width
-        elif full_index == augmented_count - 1:
-            left_width = omega_value - augmented_omega[full_index - 1]
-            left_slope = (symmetric_extension[full_index] - symmetric_extension[full_index - 1]) / left_width
-            interval_sum += left_slope * left_width
-        else:
-            raise RuntimeError("unexpected boundary index during Kramers-Kronig reconstruction")
+        left_width = omega_value - augmented_omega[full_index - 1]
+        right_width = augmented_omega[full_index + 1] - omega_value
+        coefficients[full_index - 1] += -1.0
+        coefficients[full_index] += np.log(right_width / left_width)
+        coefficients[full_index + 1] += 1.0
 
-        real_part[output_index] = interval_sum / np.pi
+        operator[output_index, 0] = coefficients[positive_count] / np.pi
+        for sample_index in range(1, positive_count):
+            coefficient = coefficients[positive_count + sample_index]
+            if assume_hermitian:
+                coefficient -= coefficients[positive_count - sample_index]
+            operator[output_index, sample_index] = coefficient / np.pi
 
-    if static_anchor is not None:
-        anchor_flat = np.asarray(static_anchor, dtype=np.float64).reshape(-1)
-        if assume_hermitian:
-            real_part += anchor_flat[None, :] - real_part[0:1, :]
-        else:
-            real_part[0] = anchor_flat
-
-    return real_part.reshape(positive_imag.shape), augmented_count
+    return operator
 
 
-def _build_augmented_symmetric_extension(
-    positive_omega: npt.NDArray[np.float64],
-    flat_imag: npt.NDArray[np.float64],
-    *,
-    assume_hermitian: bool,
-) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
-    negative_count = flat_imag.shape[0] - 1
-    if negative_count < 0:
-        raise ValueError("positive_omega must contain at least one sample")
+@njit(cache=True)
+def _build_augmented_omega_numba(positive_omega):
+    positive_count = positive_omega.shape[0]
+    right_spacing = positive_omega[-1] - positive_omega[-2]
+    augmented_omega = np.empty(2 * positive_count + 1, dtype=np.float64)
 
-    if flat_imag.shape[0] != positive_omega.size:
-        raise ValueError("positive_omega and flat_imag must share the leading axis")
+    augmented_omega[0] = -positive_omega[-1] - right_spacing
+    for offset in range(positive_count - 1):
+        augmented_omega[1 + offset] = -positive_omega[positive_count - 1 - offset]
+    augmented_omega[positive_count] = positive_omega[0]
+    for offset in range(1, positive_count):
+        augmented_omega[positive_count + offset] = positive_omega[offset]
+    augmented_omega[2 * positive_count] = positive_omega[-1] + right_spacing
 
-    if assume_hermitian:
-        negative = -flat_imag[:0:-1]
-    else:
-        negative = np.zeros((negative_count, flat_imag.shape[1]), dtype=np.float64)
-
-    full_omega = np.concatenate((-positive_omega[:0:-1], positive_omega))
-    full_imag = np.concatenate((negative, flat_imag), axis=0)
-
-    if positive_omega.size == 1:
-        right_spacing = 1.0
-    else:
-        right_spacing = positive_omega[-1] - positive_omega[-2]
-    if right_spacing <= 0.0:
-        raise ValueError("positive_omega must be strictly increasing")
-
-    augmented_omega = np.concatenate(
-        (
-            np.array([full_omega[0] - right_spacing], dtype=np.float64),
-            full_omega,
-            np.array([full_omega[-1] + right_spacing], dtype=np.float64),
-        )
-    )
-    augmented_imag = np.concatenate(
-        (
-            np.zeros((1, flat_imag.shape[1]), dtype=np.float64),
-            full_imag,
-            np.zeros((1, flat_imag.shape[1]), dtype=np.float64),
-        ),
-        axis=0,
-    )
-    return augmented_omega, augmented_imag
+    return augmented_omega

@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 import time
 
 import numpy as np
 
-from bztetra.twod import prepare_response_evaluator
+from bztetra.twod import prepare_response_sweep_evaluator
 
 try:
     import matplotlib
@@ -22,7 +23,7 @@ except ImportError as exc:  # pragma: no cover - runtime dependency check
 DEFAULT_OUTPUT = Path("build/review_plots/twod_2deg_retarded_response.png")
 GRID_SHAPE = (64, 64)
 Q_VALUES = np.linspace(0.0, 2.5, 65, dtype=np.float64)
-OMEGA_VALUES = np.linspace(0.0, 8.0, 241, dtype=np.float64)
+OMEGA_VALUES = np.linspace(0.0, 8.0, 1001, dtype=np.float64)
 LINECUT_Q_VALUES = np.array([0.5, 1.0, 2.0], dtype=np.float64)
 VALIDATION_Q = 1.0
 FERMI_ENERGY = 0.5
@@ -32,7 +33,7 @@ FERMI_WAVEVECTOR = 1.0
 def main() -> None:
     args = _parse_args()
     evaluation_start = time.perf_counter()
-    spectral_map, real_map, validation = compute_response_maps()
+    spectral_map, real_map, validation = compute_response_maps(workers=args.workers)
     evaluation_elapsed = time.perf_counter() - evaluation_start
     figure = build_figure(spectral_map, real_map, validation)
 
@@ -47,6 +48,7 @@ def main() -> None:
     validation_error = np.max(np.abs(validation["reconstructed_real"] - validation["direct_real"]))
     print(f"Wrote plot to {output_path}")
     print(f"Evaluated retarded-response map in {evaluation_elapsed:.3f} s")
+    print(f"Used q-batch workers: {args.workers}")
     print(f"Peak spectral weight at q={peak_q:.3f}, omega={peak_omega:.3f}")
     print(
         "Validation at "
@@ -55,55 +57,58 @@ def main() -> None:
     )
 
 
-def compute_response_maps() -> tuple[np.ndarray, np.ndarray, dict[str, np.ndarray | float]]:
-    spectral_map = np.empty((OMEGA_VALUES.size, Q_VALUES.size), dtype=np.float64)
-    real_map = np.empty((OMEGA_VALUES.size, Q_VALUES.size), dtype=np.float64)
+def compute_response_maps(*, workers: int) -> tuple[np.ndarray, np.ndarray, dict[str, np.ndarray | float]]:
     validation_q_index = int(np.argmin(np.abs(Q_VALUES - VALIDATION_Q)))
     validation_payload: dict[str, np.ndarray | float] = {}
+    reciprocal_vectors, occupied, target_batch = build_shifted_free_electron_targets(Q_VALUES)
+    prefactor = abs(np.linalg.det(reciprocal_vectors))
+    sweep = prepare_response_sweep_evaluator(
+        reciprocal_vectors,
+        occupied,
+        weight_grid_shape=GRID_SHAPE,
+        method="linear",
+    )
+    responses = sweep.retarded_response_observables_batch(
+        target_batch,
+        OMEGA_VALUES,
+        workers=workers,
+    )
+    spectral_map = np.stack([response.imag for response in responses], axis=1) * prefactor / np.pi
+    real_map = np.stack([response.real for response in responses], axis=1) * prefactor
 
-    for q_index, q_value in enumerate(Q_VALUES):
-        reciprocal_vectors, occupied, target = build_shifted_free_electron_bands(float(q_value))
-        evaluator = prepare_response_evaluator(
-            reciprocal_vectors,
-            occupied,
-            target,
-            weight_grid_shape=GRID_SHAPE,
-            method="linear",
-        )
-        response = evaluator.retarded_response_observables(OMEGA_VALUES)
-        prefactor = abs(np.linalg.det(reciprocal_vectors))
-        spectral_map[:, q_index] = response.imag * prefactor / np.pi
-        real_map[:, q_index] = response.real * prefactor
-
-        if q_index == validation_q_index:
-            direct_real = (
-                evaluator.complex_frequency_polarization_observables((-OMEGA_VALUES).astype(np.complex128)).real
-                * prefactor
-            )
-            validation_payload = {
-                "q_value": float(q_value),
-                "reconstructed_real": real_map[:, q_index].copy(),
-                "direct_real": direct_real,
-            }
+    validation_evaluator = sweep.prepare_target_evaluator(target_batch[validation_q_index])
+    direct_real = (
+        validation_evaluator.complex_frequency_polarization_observables((-OMEGA_VALUES).astype(np.complex128)).real
+        * prefactor
+    )
+    validation_payload = {
+        "q_value": float(Q_VALUES[validation_q_index]),
+        "reconstructed_real": real_map[:, validation_q_index].copy(),
+        "direct_real": direct_real,
+    }
 
     return spectral_map, real_map, validation_payload
 
 
-def build_shifted_free_electron_bands(q_value: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def build_shifted_free_electron_targets(q_values: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     reciprocal_vectors = np.diag([3.0, 3.0]).astype(np.float64)
     occupied = np.empty((*GRID_SHAPE, 1), dtype=np.float64)
-    target = np.empty((*GRID_SHAPE, 1), dtype=np.float64)
-    qvec = np.array([q_value, 0.0], dtype=np.float64)
+    target_batch = np.empty((q_values.size, *GRID_SHAPE, 1), dtype=np.float64)
 
     nx, ny = GRID_SHAPE
     for x_index in range(nx):
         for y_index in range(ny):
             kvec = reciprocal_vectors @ _centered_fractional_kpoint((x_index, y_index), GRID_SHAPE)
+            kx = float(kvec[0])
+            ky = float(kvec[1])
             occupied[x_index, y_index, 0] = 0.5 * float(np.dot(kvec, kvec)) - FERMI_ENERGY
-            shifted = kvec + qvec
-            target[x_index, y_index, 0] = 0.5 * float(np.dot(shifted, shifted)) - FERMI_ENERGY
+            for q_index, q_value in enumerate(q_values):
+                shifted_kx = kx + float(q_value)
+                target_batch[q_index, x_index, y_index, 0] = 0.5 * (
+                    shifted_kx * shifted_kx + ky * ky
+                ) - FERMI_ENERGY
 
-    return reciprocal_vectors, occupied, target
+    return reciprocal_vectors, occupied, target_batch
 
 
 def particle_hole_continuum_edges(q_values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -228,6 +233,15 @@ def _parse_args() -> argparse.Namespace:
         type=Path,
         default=DEFAULT_OUTPUT,
         help=f"Where to write the plot image (default: {DEFAULT_OUTPUT})",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help=(
+            "Number of q-points to evaluate in parallel "
+            f"(default: 1, detected cpu count: {os.cpu_count() or 1})"
+        ),
     )
     return parser.parse_args()
 

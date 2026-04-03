@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 import time
 
 import numpy as np
 
-from bztetra.twod import fermi_golden_rule_observables
+from bztetra.twod import prepare_response_sweep_evaluator
 
 try:
     import matplotlib
@@ -30,7 +31,7 @@ FERMI_WAVEVECTOR = 1.0
 def main() -> None:
     args = _parse_args()
     evaluation_start = time.perf_counter()
-    spectral_map = compute_spectral_map()
+    spectral_map = compute_spectral_map(workers=args.workers)
     evaluation_elapsed = time.perf_counter() - evaluation_start
     figure = build_figure(spectral_map)
 
@@ -44,44 +45,45 @@ def main() -> None:
     peak_q = Q_VALUES[peak_index[1]]
     print(f"Wrote plot to {output_path}")
     print(f"Evaluated spectral map in {evaluation_elapsed:.3f} s")
+    print(f"Used q-batch workers: {args.workers}")
     print(f"Peak spectral weight at q={peak_q:.3f}, omega={peak_omega:.3f}")
 
 
-def compute_spectral_map() -> np.ndarray:
-    spectral_map = np.empty((OMEGA_VALUES.size, Q_VALUES.size), dtype=np.float64)
-
-    for q_index, q_value in enumerate(Q_VALUES):
-        reciprocal_vectors, occupied, target = build_shifted_free_electron_bands(float(q_value))
-        spectral_map[:, q_index] = (
-            fermi_golden_rule_observables(
-                reciprocal_vectors,
-                occupied,
-                target,
-                OMEGA_VALUES,
-                weight_grid_shape=GRID_SHAPE,
-                method="linear",
-            )
-            * abs(np.linalg.det(reciprocal_vectors))
-        )
-
-    return spectral_map
+def compute_spectral_map(*, workers: int) -> np.ndarray:
+    reciprocal_vectors, occupied, target_batch = build_shifted_free_electron_targets(Q_VALUES)
+    sweep = prepare_response_sweep_evaluator(
+        reciprocal_vectors,
+        occupied,
+        weight_grid_shape=GRID_SHAPE,
+        method="linear",
+    )
+    contracted = sweep.fermi_golden_rule_observables_batch(
+        target_batch,
+        OMEGA_VALUES,
+        workers=workers,
+    )
+    return contracted.T * abs(np.linalg.det(reciprocal_vectors))
 
 
-def build_shifted_free_electron_bands(q_value: float) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def build_shifted_free_electron_targets(q_values: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     reciprocal_vectors = np.diag([3.0, 3.0]).astype(np.float64)
     occupied = np.empty((*GRID_SHAPE, 1), dtype=np.float64)
-    target = np.empty((*GRID_SHAPE, 1), dtype=np.float64)
-    qvec = np.array([q_value, 0.0], dtype=np.float64)
+    target_batch = np.empty((q_values.size, *GRID_SHAPE, 1), dtype=np.float64)
 
     nx, ny = GRID_SHAPE
     for x_index in range(nx):
         for y_index in range(ny):
             kvec = reciprocal_vectors @ _centered_fractional_kpoint((x_index, y_index), GRID_SHAPE)
+            kx = float(kvec[0])
+            ky = float(kvec[1])
             occupied[x_index, y_index, 0] = 0.5 * float(np.dot(kvec, kvec)) - FERMI_ENERGY
-            shifted = kvec + qvec
-            target[x_index, y_index, 0] = 0.5 * float(np.dot(shifted, shifted)) - FERMI_ENERGY
+            for q_index, q_value in enumerate(q_values):
+                shifted_kx = kx + float(q_value)
+                target_batch[q_index, x_index, y_index, 0] = 0.5 * (
+                    shifted_kx * shifted_kx + ky * ky
+                ) - FERMI_ENERGY
 
-    return reciprocal_vectors, occupied, target
+    return reciprocal_vectors, occupied, target_batch
 
 
 def particle_hole_continuum_edges(q_values: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
@@ -171,6 +173,15 @@ def _parse_args() -> argparse.Namespace:
         type=Path,
         default=DEFAULT_OUTPUT,
         help=f"Where to write the plot image (default: {DEFAULT_OUTPUT})",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help=(
+            "Number of q-points to evaluate in parallel "
+            f"(default: 1, detected cpu count: {os.cpu_count() or 1})"
+        ),
     )
     return parser.parse_args()
 

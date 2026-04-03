@@ -191,40 +191,41 @@ triangle response kernels:
 </figure>
 
 For a dense real-frequency sweep on the 2D path, use the direct contracted API
-instead of materializing the full k-resolved tensor:
+instead of materializing the full k-resolved tensor. If the source bands stay
+fixed while the target varies across many `q` points, prepare the source state
+once and batch the target sweeps:
 
 ```python
 import numpy as np
-from bztetra.twod import fermi_golden_rule_observables
+from bztetra.twod import prepare_response_sweep_evaluator
 
-values = fermi_golden_rule_observables(
+sweep = prepare_response_sweep_evaluator(
     bvec,
     occupied,
-    target,
-    np.linspace(0.0, 5.5, 181),
     method="linear",
 )
-spectral_curve = values * abs(np.linalg.det(bvec))
+values = sweep.fermi_golden_rule_observables_batch(
+    target_batch,
+    np.linspace(0.0, 5.5, 181),
+    workers=4,
+)
+spectral_map = values.transpose(1, 0) * abs(np.linalg.det(bvec))
 ```
 
 `examples/plot_twod_2deg_spectral_function.py` uses that path to build a
 \((q_x, \omega)\) intensity map for the free-electron particle-hole continuum.
 
 If you also want the real part on the same energy grid, use the automatic
-causality wrapper:
+causality wrapper on the same sweep object:
 
 ```python
-from bztetra.twod import retarded_response_observables
-
-response = retarded_response_observables(
-    bvec,
-    occupied,
-    target,
+responses = sweep.retarded_response_observables_batch(
+    target_batch,
     np.linspace(0.0, 5.5, 181),
-    method="linear",
+    workers=4,
 )
-real_curve = response.real
-imag_curve = response.imag
+real_map = np.stack([response.real for response in responses], axis=1)
+imag_map = np.stack([response.imag for response in responses], axis=1)
 ```
 
 This reconstruction follows the same occupied-to-empty branch as
@@ -234,7 +235,14 @@ This reconstruction follows the same occupied-to-empty branch as
 plot with
 - a spectral-weight map,
 - the reconstructed real-part map,
-- and a direct comparison against `complex_frequency_polarization_observables(-omega + 0j)` for one line cut.
+- a direct comparison against `complex_frequency_polarization_observables(-omega + 0j)` for one line cut,
+- and an optional `--workers` flag for parallel `q` sweeps.
+
+For full-grid timing rather than a single `q_y = 0` cut, use
+`examples/plot_twod_2deg_retarded_response_qgrid.py`. It evaluates the full
+\((q_x, q_y, \omega)\) cube, plots one fixed-energy momentum slice plus the
+embedded `q_y = 0` cut, and exposes CLI controls for `nk`, `nq`, `n\omega`,
+and `--workers`.
 
 ## Complex-Frequency Polarization On The Matsubara Axis
 

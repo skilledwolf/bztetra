@@ -36,6 +36,10 @@ with 2D shapes and the linear triangle method only.
 
 ::: bztetra.twod.prepare_response_evaluator
 
+::: bztetra.twod.PreparedResponseSweepEvaluator
+
+::: bztetra.twod.prepare_response_sweep_evaluator
+
 ::: bztetra.twod.phase_space_overlap_weights
 
 ::: bztetra.twod.nesting_function_weights
@@ -48,11 +52,15 @@ with 2D shapes and the linear triangle method only.
 
 ::: bztetra.twod.fermi_golden_rule_observables
 
+::: bztetra.twod.fermi_golden_rule_observables_batch
+
 ::: bztetra.twod.complex_frequency_polarization_weights
 
 ::: bztetra.twod.complex_frequency_polarization_observables
 
 ::: bztetra.twod.retarded_response_observables
+
+::: bztetra.twod.retarded_response_observables_batch
 
 ::: bztetra.twod.TriangleIntegrationMesh
 

@@ -9,9 +9,12 @@ import pytest
 from bztetra.twod import complex_frequency_polarization_observables
 from bztetra.twod import complex_frequency_polarization_weights
 from bztetra.twod import fermi_golden_rule_observables
+from bztetra.twod import fermi_golden_rule_observables_batch
 from bztetra.twod import fermi_golden_rule_weights
 from bztetra.twod import prepare_response_evaluator
+from bztetra.twod import prepare_response_sweep_evaluator
 from bztetra.twod import retarded_response_observables
+from bztetra.twod import retarded_response_observables_batch
 from bztetra.twod import static_polarization_observables
 from bztetra.twod import static_polarization_weights
 from bztetra.twod._grids import interpolated_triangle_energies
@@ -401,6 +404,153 @@ def test_twod_prepared_response_observables_accept_local_point_matrix_elements()
 
     assert observed.shape == (energies.size, 2)
     np.testing.assert_allclose(observed, expected, rtol=1.0e-12, atol=1.0e-12)
+
+
+def test_twod_prepare_response_sweep_target_evaluator_matches_single_prepare() -> None:
+    reciprocal_vectors, occupied, target = synthetic_multiband_response_case(band_count=2)
+    energies = np.linspace(0.0, 1.1, 7, dtype=np.float64)
+
+    sweep = prepare_response_sweep_evaluator(
+        reciprocal_vectors,
+        occupied,
+        weight_grid_shape=occupied.shape[:2],
+        method="linear",
+    )
+    prepared = prepare_response_evaluator(
+        reciprocal_vectors,
+        occupied,
+        target,
+        weight_grid_shape=occupied.shape[:2],
+        method="linear",
+    )
+    from_sweep = sweep.prepare_target_evaluator(target)
+
+    np.testing.assert_allclose(
+        from_sweep.fermi_golden_rule_observables(energies),
+        prepared.fermi_golden_rule_observables(energies),
+        rtol=1.0e-12,
+        atol=1.0e-12,
+    )
+
+
+def test_twod_fermi_golden_rule_observables_batch_matches_loop_and_parallel_workers() -> None:
+    reciprocal_vectors, occupied, target = synthetic_multiband_response_case(band_count=2)
+    energies = np.linspace(0.0, 1.1, 7, dtype=np.float64)
+    target_batch = np.stack(
+        (
+            target,
+            target + 0.05,
+            target + 0.12,
+        ),
+        axis=0,
+    )
+    rng = np.random.default_rng(97531)
+    matrix_elements_batch = tuple(
+        rng.normal(size=(2, occupied.shape[0], occupied.shape[1], target.shape[-1], occupied.shape[-1]))
+        for _ in range(target_batch.shape[0])
+    )
+
+    sweep = prepare_response_sweep_evaluator(
+        reciprocal_vectors,
+        occupied,
+        weight_grid_shape=occupied.shape[:2],
+        method="linear",
+    )
+    expected = np.stack(
+        [
+            prepare_response_evaluator(
+                reciprocal_vectors,
+                occupied,
+                target_values,
+                weight_grid_shape=occupied.shape[:2],
+                method="linear",
+            ).fermi_golden_rule_observables(energies, matrix_elements=target_matrix_elements)
+            for target_values, target_matrix_elements in zip(target_batch, matrix_elements_batch, strict=True)
+        ],
+        axis=0,
+    )
+
+    serial = sweep.fermi_golden_rule_observables_batch(
+        target_batch,
+        energies,
+        matrix_elements=matrix_elements_batch,
+        workers=1,
+    )
+    parallel = sweep.fermi_golden_rule_observables_batch(
+        target_batch,
+        energies,
+        matrix_elements=matrix_elements_batch,
+        workers=2,
+    )
+    wrapped = fermi_golden_rule_observables_batch(
+        reciprocal_vectors,
+        occupied,
+        target_batch,
+        energies,
+        matrix_elements=matrix_elements_batch,
+        weight_grid_shape=occupied.shape[:2],
+        method="linear",
+        workers=2,
+    )
+
+    np.testing.assert_allclose(serial, expected, rtol=1.0e-12, atol=1.0e-12)
+    np.testing.assert_allclose(parallel, expected, rtol=1.0e-12, atol=1.0e-12)
+    np.testing.assert_allclose(wrapped, expected, rtol=1.0e-12, atol=1.0e-12)
+
+
+def test_twod_retarded_response_observables_batch_matches_loop() -> None:
+    reciprocal_vectors, occupied, target = synthetic_multiband_response_case(band_count=2)
+    energies = np.linspace(0.0, 2.0, 129, dtype=np.float64)
+    target_batch = np.stack(
+        (
+            target,
+            target + 0.05,
+            target + 0.12,
+        ),
+        axis=0,
+    )
+
+    sweep = prepare_response_sweep_evaluator(
+        reciprocal_vectors,
+        occupied,
+        weight_grid_shape=occupied.shape[:2],
+        method="linear",
+    )
+    expected = tuple(
+        prepare_response_evaluator(
+            reciprocal_vectors,
+            occupied,
+            target_values,
+            weight_grid_shape=occupied.shape[:2],
+            method="linear",
+        ).retarded_response_observables(energies)
+        for target_values in target_batch
+    )
+
+    observed = sweep.retarded_response_observables_batch(
+        target_batch,
+        energies,
+        workers=2,
+    )
+    wrapped = retarded_response_observables_batch(
+        reciprocal_vectors,
+        occupied,
+        target_batch,
+        energies,
+        weight_grid_shape=occupied.shape[:2],
+        method="linear",
+        workers=2,
+    )
+
+    assert len(observed) == len(expected)
+    assert len(wrapped) == len(expected)
+    for actual, reference in zip(observed, expected, strict=True):
+        np.testing.assert_allclose(actual.omega, reference.omega, rtol=0.0, atol=0.0)
+        np.testing.assert_allclose(actual.imag, reference.imag, rtol=1.0e-12, atol=1.0e-12)
+        np.testing.assert_allclose(actual.real, reference.real, rtol=1.0e-12, atol=1.0e-12)
+    for actual, reference in zip(wrapped, expected, strict=True):
+        np.testing.assert_allclose(actual.imag, reference.imag, rtol=1.0e-12, atol=1.0e-12)
+        np.testing.assert_allclose(actual.real, reference.real, rtol=1.0e-12, atol=1.0e-12)
 
 
 def test_twod_retarded_response_observables_match_real_axis_complex_kernel() -> None:
