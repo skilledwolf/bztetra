@@ -10,6 +10,20 @@ from ._causality import _reconstruct_retarded_response_impl
 
 @dataclass(slots=True)
 class KramersKronigDiagnostics:
+    """Operational metadata for the causal reconstruction backend.
+
+    `minimum_spacing` and `maximum_spacing` describe the requested positive
+    frequency grid after any support-boundary insertions and optional synthetic
+    zero-frequency insertion. `support_boundary_insertions` counts how many
+    zero-valued samples were added at the lower/upper support edge so the
+    piecewise-linear clipping model is exact on the working grid.
+
+    `static_anchor_applied` reports whether the supplied anchor actually
+    modified the reconstruction. `cached_operator` reports whether the dense
+    Hilbert-transform operator came from the small-grid cache rather than being
+    built as a one-off matrix for a large frequency grid.
+    """
+
     support_bounds: tuple[float, float] | None
     minimum_spacing: float
     maximum_spacing: float
@@ -24,6 +38,8 @@ class KramersKronigDiagnostics:
 
 @dataclass(slots=True)
 class RetardedResponse:
+    """Reconstructed response and the metadata needed to interpret it."""
+
     omega: npt.NDArray[np.float64]
     imag: npt.NDArray[np.float64]
     real: npt.NDArray[np.float64]
@@ -51,6 +67,17 @@ def reconstruct_retarded_response(
     returned zero-frequency point is pinned. Compact support bounds clip the
     spectrum on the working piecewise-linear grid, inserting zero-valued edge
     samples when a support boundary falls between two requested frequencies.
+
+    In the default branch convention, callers should pass
+    `imag_response(omega) = pi * S(omega)` for `omega >= 0`, and the returned
+    real part matches `complex_frequency_polarization_observables(-omega + 0j)`
+    on the same occupied-to-empty branch. For full Hermitian self-responses,
+    set `assume_hermitian=True` so the negative-frequency branch is generated
+    by odd extension instead.
+
+    The return value preserves the requested `omega` grid in `RetardedResponse`
+    while exposing backend details such as support clipping, synthetic zero
+    insertion, and operator caching through `RetardedResponse.diagnostics`.
     """
 
     result = _reconstruct_retarded_response_impl(

@@ -231,6 +231,33 @@ imag_map = np.stack([response.imag for response in responses], axis=1)
 This reconstruction follows the same occupied-to-empty branch as
 `complex_frequency_polarization_observables(-omega + 0j)`.
 
+If you want to use the KK helper directly instead of the 2D convenience
+wrapper, the minimal pattern is:
+
+```python
+import numpy as np
+from bztetra import reconstruct_retarded_response
+
+omega = np.linspace(0.0, 5.5, 181)
+imag_branch = np.pi * spectral_curve
+response = reconstruct_retarded_response(
+    omega,
+    imag_branch,
+    static_anchor=static_value,
+    support_bounds=(0.0, omega_support_max),
+)
+```
+
+Practical notes for the direct helper:
+
+- The default branch assumes the supplied imaginary part is zero for negative
+  frequencies.
+- `static_anchor` is only valid for that default branch when the requested grid
+  includes `omega[0] == 0.0`.
+- `support_bounds` should cover the full spectral support. The 2D wrapper
+  derives those bounds automatically from the prepared transition energies, but
+  the standalone helper only uses the bounds you pass in.
+
 `examples/plot_twod_2deg_retarded_response.py` turns that into a 2DEG review
 plot with
 - a spectral-weight map,

@@ -90,6 +90,11 @@ with 2D shapes and the linear triangle method only.
 
 ## Causality And Reconstruction
 
+These APIs reconstruct a causal real part from an imaginary part sampled on a
+positive-frequency grid. The default branch matches the occupied-to-empty
+spectral convention used by the 2D contracted response helpers. For full
+Hermitian self-responses, use `assume_hermitian=True`.
+
 ::: bztetra.reconstruct_retarded_response
 
 ::: bztetra.RetardedResponse
